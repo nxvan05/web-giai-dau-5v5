@@ -11,7 +11,7 @@
     "test:watch": "jest --watch --forceExit --detectOpenHandles",
     "bot": "node src/discord/bot.js",
     "register-commands": "node -e \"require('./src/discord/bot').registerCommands()\"",
-    "postinstall": "npx prisma generate && npx prisma db push",
+    "postinstall": "node node_modules/prisma/build/index.js generate && node node_modules/prisma/build/index.js db push || echo 'prisma setup failed (non-fatal)'",
     "db:push": "npx prisma db push",
     "db:studio": "npx prisma studio"
   },
