@@ -1,0 +1,35 @@
+const { Server } = require('socket.io');
+
+let io = null;
+
+function initSocket(httpServer, corsOrigin) {
+  io = new Server(httpServer, {
+    cors: { origin: corsOrigin, credentials: true },
+    transports: ['websocket', 'polling']
+  });
+  io.on('connection', (socket) => {
+    console.log('Socket connected:', socket.id);
+
+    socket.on('stream:join', (streamId) => {
+      socket.join('stream-' + streamId);
+      console.log('Socket joined stream:', streamId);
+    });
+
+    socket.on('stream:leave', (streamId) => {
+      socket.leave('stream-' + streamId);
+    });
+
+    socket.on('stream:update-score', (data) => {
+      io.to('stream-' + data.streamId).emit('stream:score', data);
+    });
+
+    socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
+  });
+  return io;
+}
+
+function getIO() {
+  return io;
+}
+
+module.exports = { initSocket, getIO };

@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evan Cup - Cổng Điều Hành Giải Đấu 5v5</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        valBg: '#0b0e14',
+                        valCard: '#111822',
+                        valRed: '#ff4655',
+                        valCyan: '#00f2fe',
+                        valLight: '#ece8e1',
+                        valDarkRed: '#7a1c22',
+                        valBorder: '#1f2937'
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        display: ['Poppins', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0b0e14; }
+        ::-webkit-scrollbar-thumb { background: #111822; border-radius: 4px; border: 2px solid #ff4655; }
+        
+        .glow-red { box-shadow: 0 0 20px rgba(255, 70, 85, 0.3); }
+        .glow-cyan { box-shadow: 0 0 20px rgba(0, 242, 254, 0.3); }
+        .glow-gold { box-shadow: 0 0 20px rgba(234, 179, 8, 0.25); }
+        .hover-scale { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .hover-scale:hover { transform: translateY(-2px); }
+        .cyber-bg-glow { background: radial-gradient(circle at 50% -20%, rgba(255, 70, 85, 0.15) 0%, transparent 60%); }
+        
+        .map-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .map-banned { filter: grayscale(1) brightness(0.35) contrast(1.2); border-color: #ff4655 !important; }
+        .map-picked-cyan { border-color: #00f2fe !important; box-shadow: 0 0 20px rgba(0, 242, 254, 0.4); transform: scale(1.03); z-index: 10; }
+        .map-picked-red { border-color: #ff4655 !important; box-shadow: 0 0 20px rgba(255, 70, 85, 0.4); transform: scale(1.03); z-index: 10; }
+        .map-decider { border-color: #eab308 !important; box-shadow: 0 0 25px rgba(234, 179, 8, 0.5); transform: scale(1.05); z-index: 10; }
+        .schedule-expanded #schedule-card { max-width: 100% !important; border-radius: 0; }
+        .schedule-expanded #schedule-container { max-width: 100% !important; }
+        .schedule-expanded .schedule-match-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
+        .schedule-compact .schedule-match-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .tooltip-guide { position: relative; }
+        .tooltip-guide:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1f2937; color: #e5e7eb; padding: 6px 10px; border-radius: 8px; font-size: 10px; white-space: nowrap; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 1px solid #374151; }
+        @media (max-width: 640px) { .schedule-fullscreen .match-card-grid { grid-template-columns: 1fr; } }
+    </style>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-valBg text-gray-200 min-h-screen font-sans antialiased selection:bg-valRed selection:text-white cyber-bg-glow">
+
+    <div id="toast-container" class="fixed top-5 right-5 z-[9999] space-y-3 pointer-events-none"></div>
+
+    <!-- Floating help button -->
+    <button onclick="toggleHelpModal()" class="fixed bottom-5 right-5 z-[9998] w-10 h-10 rounded-full bg-valCard border border-gray-700 text-gray-400 hover:text-white hover:border-valCyan transition flex items-center justify-center shadow-xl" title="Hướng dẫn nhanh">
+        <i class="fa-solid fa-question text-sm"></i>
+    </button>
+
+    <!-- Help modal -->
+    <div id="help-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 hidden">
+        <div class="bg-valCard border border-gray-800 max-w-lg w-full rounded-2xl shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div class="sticky top-0 bg-valCard z-10 flex items-center gap-2 p-4 border-b border-gray-800">
+                <i class="fa-solid fa-lightbulb text-yellow-400 text-xl"></i>
+                <h3 class="font-display text-lg font-bold text-white uppercase">Hướng Dẫn Nhanh</h3>
+                <button onclick="toggleHelpModal()" class="ml-auto text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-3 text-xs text-gray-300">
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">📋 Cẩm Nang</span> — Thông tin giải thưởng, VETO map, cấu hình webhook</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valRed font-bold">📝 Form Đăng Ký</span> — Đăng ký Solo/Duo/Trio, nhập thông tin Riot ID + Rank</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-yellow-400 font-bold">⚖️ Cân Bằng & Draft</span> — Admin: quản lý VĐV, auto-draft đội, duyệt team, penalty, audit log</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">📅 Lịch Đấu</span> — Xem trận sắp/đã đấu, check-in, nhập kết quả, VETO. Nhấn <i class="fa-solid fa-expand text-gray-400"></i> để phóng to</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-yellow-400 font-bold">🏆 Bảng XH</span> — Xếp hạng Elo, click tên để xem profile + KDA + biểu đồ + đối đầu</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">👤 Dashboard</span> — Tra cứu lịch sử VĐV hoặc đội</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-emerald-400 font-bold">🔀 Playoff</span> — Vòng loại trực tiếp, tạo + cập nhật bracket</div>
+            </div>
+        </div>
+    </div>
+
+    <header class="border-b-2 border-valRed/20 bg-valBg/95 backdrop-blur sticky top-0 z-50 shadow-2xl">
+        <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-col lg:flex-row justify-between items-center gap-4">
+            
+            <!-- Logo & Tiêu đề thương hiệu Evan -->
+            <div class="flex items-center gap-4">
+                <div class="relative group">
+                    <div class="absolute -inset-1 rounded-full bg-gradient-to-r from-valRed via-pink-500 to-valCyan opacity-75 blur group-hover:opacity-100 transition duration-500"></div>
+                    <div class="relative w-16 h-16 rounded-full overflow-hidden border-2 border-valRed shadow-lg bg-white flex items-center justify-center">
+                        <!-- Xử lý lỗi ảnh logo: Tự động đổi nguồn hoặc vẽ bằng code nếu cả hai nguồn bị lỗi -->
+                        <img id="main-logo" src="image_f5cea1.jpg" alt="Logo Evan Server" class="w-full h-full object-cover scale-110" 
+                             onerror="handleLogoError()">
+                    </div>
+                </div>
+                <div>
+                    <h1 class="font-display font-black text-2xl tracking-wider text-white uppercase flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                        <span>EVAN</span>
+                        <span class="text-valRed font-extrabold text-lg sm:text-xl normal-case italic font-sans">make u feel better</span>
+                    </h1>
+                    <p class="text-[11px] text-valCyan font-mono uppercase tracking-widest font-black flex items-center gap-1.5 mt-0.5">
+                        <i class="fa-solid fa-crosshairs text-valRed animate-ping"></i> GIẢI ĐẤU EVAN CUP • TRẦN ĐIỂM: 21
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Tabs Điều Hướng Navigation -->
+            <nav class="flex flex-wrap justify-center gap-2 bg-valCard/80 p-1.5 rounded-2xl border border-gray-800">
+                <button onclick="switchTab('guide-tab')" id="btn-guide-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 bg-valRed text-white glow-red hover-scale" title="Thông tin giải thưởng, VETO, webhook, team registration">
+                    <i class="fa-solid fa-map mr-2"></i>Cẩm Nang
+                </button>
+                <button onclick="switchTab('register-tab')" id="btn-register-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Đăng ký tham gia giải — Solo, Duo, Trio">
+                    <i class="fa-solid fa-pen-to-square mr-2"></i>Form Đăng Ký
+                </button>
+                <button onclick="switchTab('admin-tab')" id="btn-admin-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale relative hidden" title="Cân bằng đội, duyệt team, penalty, audit log">
+                    <i class="fa-solid fa-crown mr-2"></i>Cân Bằng &amp; Draft
+                    <span id="player-count-badge" class="absolute -top-1.5 -right-1.5 bg-valCyan text-valBg text-[10px] px-1.5 py-0.5 rounded-full font-black">0</span>
+                </button>
+                <button onclick="switchTab('schedule-tab')" id="btn-schedule-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Lịch thi đấu, check-in, nhập kết quả, VETO">
+                    <i class="fa-solid fa-calendar-days mr-2"></i>Lịch Đấu
+                </button>
+                <button onclick="switchTab('leaderboard-tab')" id="btn-leaderboard-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Bảng xếp hạng tuyển thủ + đội, click tên xem profile">
+                    <i class="fa-solid fa-ranking-star mr-2"></i>Bảng XH
+                </button>
+                <button onclick="switchTab('dashboard-tab')" id="btn-dashboard-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Tra cứu lịch sử thi đấu, đối đầu">
+                    <i class="fa-solid fa-id-card mr-2"></i>Dashboard
+                </button>
+                <button onclick="switchTab('bracket-tab')" id="btn-bracket-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Vòng Playoff tranh chức vô địch">
+                    <i class="fa-solid fa-diagram-project mr-2"></i>Playoff
+                </button>
+                <button onclick="switchTab('stream-tab')" id="btn-stream-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Streaming & Casting Booth">
+                    <i class="fa-solid fa-tower-broadcast mr-2"></i>Stream Booth
+                </button>
+            </nav>
+
+            <!-- Discord Login -->
+            <div id="discord-auth-section" class="flex items-center gap-2 shrink-0">
+                <div id="discord-user-info" class="hidden flex items-center gap-2 bg-[#5865F2]/10 border border-[#5865F2]/30 px-3 py-1.5 rounded-xl">
+                    <img id="discord-avatar" class="w-6 h-6 rounded-full" src="" alt="">
+                    <span id="discord-username" class="text-xs text-white font-bold"></span>
+                    <button onclick="logoutDiscord()" class="text-gray-500 hover:text-red-400 text-xs ml-1" title="Đăng xuất"><i class="fa-solid fa-sign-out-alt"></i></button>
+                </div>
+                <button id="discord-login-btn" onclick="loginDiscord()" class="bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-2">
+                    <i class="fa-brands fa-discord"></i> Đăng Nhập
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        
+        <section id="guide-tab" class="tab-content block">
+            
+            <!-- Phân khu Cơ Cấu Giải Thưởng lấy ván vô địch làm trung tâm -->
+            <div class="relative bg-gradient-to-r from-yellow-950/10 via-valCard to-yellow-950/10 border border-yellow-500/20 p-6 rounded-2xl mb-8 shadow-2xl overflow-hidden glow-gold animate-fadeIn">
+                <div class="absolute -top-12 -left-12 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                
+                <div class="text-center mb-6 relative">
+                    <span class="text-xs bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-3 py-1 rounded-full font-bold uppercase tracking-widest font-mono">
+                        <i class="fa-solid fa-trophy mr-1.5 text-yellow-400 animate-bounce"></i> CƠ CẤU GIẢI THƯỞNG EVAN CUP
+                    </span>
+                    <h2 class="font-display text-lg sm:text-xl font-black text-white uppercase mt-3 tracking-wider">Hào Khí Tranh Tài - Săn Ngay Quà Khủng</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch relative">
+                    <!-- Giải MVP -->
+                    <div class="order-2 md:order-1 bg-valBg/80 border border-gray-800 p-5 rounded-xl text-center hover-scale flex flex-col justify-center shadow-lg">
+                        <div class="mb-2">
+                            <div class="text-3xl text-gray-300 mb-2 drop-shadow-md"><i class="fa-solid fa-medal"></i></div>
+                            <h4 class="text-xs text-gray-300 font-bold uppercase tracking-wider">Cá Nhân Xuất Sắc (MVP)</h4>
+                        </div>
+                        <div class="my-2">
+                            <p class="text-2xl font-black text-white font-mono tracking-wide">610 VP</p>
+                            <p class="text-[11px] text-gray-400 font-semibold mt-1">Quy đổi: <span class="text-gray-300 font-mono font-bold">100.000 VNĐ</span></p>
+                        </div>
+                    </div>
+
+                    <!-- Giải Vô Địch (Được phóng to và đặt ở trung tâm làm điểm nhấn) -->
+                    <div class="order-1 md:order-2 bg-gradient-to-b from-yellow-500/20 via-valBg to-yellow-950/30 border-2 border-yellow-400 p-6 md:scale-110 z-10 rounded-2xl text-center hover-scale flex flex-col justify-center relative shadow-[0_0_35px_rgba(250,204,21,0.25)]">
+                        <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-amber-400 text-black px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-yellow-200 shadow-lg whitespace-nowrap">
+                            <i class="fa-solid fa-star mr-1"></i> CAO QUÝ NHẤT <i class="fa-solid fa-star ml-1"></i>
+                        </div>
+                        <div class="mb-3 mt-2">
+                            <div class="text-5xl text-yellow-400 mb-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]"><i class="fa-solid fa-crown"></i></div>
+                            <h4 class="text-sm text-yellow-400 font-black uppercase tracking-widest font-display">Đội Vô Địch (Champion)</h4>
+                        </div>
+                        <div class="my-2">
+                            <p class="text-4xl font-black text-white font-mono tracking-wide drop-shadow-lg">3,040 VP</p>
+                            <p class="text-xs text-yellow-500/80 font-bold mt-1">Hoặc quy đổi: <span class="text-yellow-400 font-mono text-sm">500.000 VNĐ</span></p>
+                        </div>
+                        <div class="mt-3 text-[11px] text-yellow-400 font-bold bg-yellow-500/10 py-2 rounded-lg border border-yellow-500/30">Cấp màu Role Vô Địch Độc Quyền</div>
+                    </div>
+
+                    <!-- Giải Highlight -->
+                    <div class="order-3 md:order-3 bg-valBg/80 border border-gray-800 p-5 rounded-xl text-center hover-scale flex flex-col justify-center shadow-lg">
+                        <div class="mb-2">
+                            <div class="text-3xl text-amber-600 mb-2 drop-shadow-md"><i class="fa-solid fa-fire-flame-curved"></i></div>
+                            <h4 class="text-xs text-amber-500 font-bold uppercase tracking-wider">Best Highlight Toàn Giải</h4>
+                        </div>
+                        <div class="my-2">
+                            <p class="text-2xl font-black text-white font-mono tracking-wide">610 VP</p>
+                            <p class="text-[11px] text-gray-400 font-semibold mt-1">Quy đổi: <span class="text-amber-500 font-mono font-bold">100.000 VNĐ</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl mb-8 shadow-xl relative overflow-hidden group">
+                <div class="absolute -top-12 -right-12 w-32 h-32 bg-valRed/5 rounded-full blur-2xl pointer-events-none"></div>
+                <div class="flex items-center gap-2.5 mb-6 border-b border-gray-800 pb-3">
+                    <i class="fa-solid fa-calendar-days text-valRed text-xl animate-pulse"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Lịch Trình Chi Tiết Giải Đấu</h3>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Giai đoạn 1 -->
+                    <div class="bg-valBg/60 p-5 rounded-xl border border-gray-800 hover:border-valRed/30 transition-all duration-300 relative group/card">
+                        <div class="absolute -top-3 -left-1 bg-valRed text-white font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 1</div>
+                        <h4 class="text-white font-bold text-sm mt-2 mb-1 uppercase tracking-wide">Mở Đăng Ký Giải</h4>
+                        <span class="text-[10px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>01/07 - 05/07</span>
+                        <p class="text-xs text-gray-400 leading-relaxed">
+                            Tuyển thủ điền thông tin tại tab <strong class="text-valRed">Đơn Đăng Ký</strong>. Thông tin sẽ được tự động lưu và Admin sẽ kiểm duyệt.
+                        </p>
+                    </div>
+
+                    <!-- Giai đoạn 2 -->
+                    <div class="bg-valBg/60 p-5 rounded-xl border border-gray-800 hover:border-valCyan/30 transition-all duration-300 relative group/card">
+                        <div class="absolute -top-3 -left-1 bg-valCyan text-valBg font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 2</div>
+                        <h4 class="text-white font-bold text-sm mt-2 mb-1 uppercase tracking-wide">Draft Quân & Chia Đội</h4>
+                        <span class="text-[10px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>06/07</span>
+                        <p class="text-xs text-gray-400 leading-relaxed">
+                            Ban tổ chức chốt danh sách 30 người chơi. Livestream kích hoạt bộ chia đội tự động cân bằng rank và tiến hành bốc thăm chia 2 bảng đấu (A & B).
+                        </p>
+                    </div>
+
+                    <!-- Giai đoạn 3 -->
+                    <div class="bg-valBg/60 p-5 rounded-xl border border-gray-800 hover:border-valCyan/30 transition-all duration-300 relative group/card">
+                        <div class="absolute -top-3 -left-1 bg-gray-700 text-gray-300 font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 3</div>
+                        <h4 class="text-white font-bold text-sm mt-2 mb-1 uppercase tracking-wide">Khởi Tranh Vòng Bảng</h4>
+                        <span class="text-[10px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>08/07 - 10/07</span>
+                        <p class="text-xs text-gray-400 leading-relaxed">
+                            Các đội trong bảng thi đấu vòng tròn 1 lượt (BO1). 2 đội có điểm số cao nhất mỗi bảng sẽ giành vé vàng bước tiếp vào vòng Bán Kết kịch tính.
+                        </p>
+                    </div>
+
+                    <!-- Giai đoạn 4 -->
+                    <div class="bg-valBg/60 p-5 rounded-xl border border-yellow-500/20 hover:border-yellow-500/40 transition-all duration-300 relative group/card shadow-[0_0_15px_rgba(234,179,8,0.05)]">
+                        <div class="absolute -top-3 -left-1 bg-yellow-500 text-black font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 4</div>
+                        <h4 class="text-yellow-400 font-bold text-sm mt-2 mb-1 uppercase tracking-wide">Bán Kết & Chung Kết</h4>
+                        <span class="text-[10px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>12/07</span>
+                        <p class="text-xs text-gray-400 leading-relaxed">
+                            Vòng loại trực tiếp diễn ra trực tuyến. Trận chung kết (BO3) sẽ được phát sóng trực tiếp kèm bình luận viên tại phòng máy chiếu của server.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Sơ đồ Kênh Chữ (Dựa theo ảnh image_27bcdf.png) -->
+                <div class="bg-valCard border border-gray-800 p-6 rounded-2xl relative shadow-xl hover-scale">
+                    <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                        <i class="fa-solid fa-hashtag text-valRed text-xl"></i>
+                        <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Sơ đồ Kênh Chữ Discord</h3>
+                    </div>
+                    <div class="bg-valBg p-4 rounded-xl border border-gray-800">
+                        <span class="text-[10px] text-gray-500 font-mono font-bold uppercase tracking-widest block mb-2">DANH MỤC: THÔNG BÁO</span>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex items-center gap-2 bg-valCard/40 p-2 rounded-lg"><i class="fa-solid fa-volume-high text-amber-500"></i><span class="font-mono text-gray-200"># kênh-thông-báo 🔔</span></div>
+                            <div class="flex items-center gap-2 bg-valCard/40 p-2 rounded-lg"><i class="fa-solid fa-gift text-valRed"></i><span class="font-mono text-gray-200"># sự-kiện</span></div>
+                            <div class="flex items-center justify-between bg-valRed/10 p-2.5 rounded-lg border border-valRed/30 glow-red">
+                                <span class="flex items-center gap-2 font-mono text-white font-bold"><i class="fa-solid fa-lock text-valRed"></i> # đăng-kí-giải</span>
+                                <span class="text-[9px] bg-valRed text-white px-2 py-0.5 rounded font-black uppercase">NƠI ĐĂNG KÝ (TICKET BOT)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sơ đồ Kênh Thoại (Dựa theo ảnh image_27bd17.png) -->
+                <div class="bg-valCard border border-gray-800 p-6 rounded-2xl relative shadow-xl hover-scale">
+                    <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                        <i class="fa-solid fa-headset text-valCyan text-xl"></i>
+                        <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Sơ đồ Kênh Thoại Discord</h3>
+                    </div>
+                    <div class="bg-valBg p-4 rounded-xl border border-gray-800">
+                        <span class="text-[10px] text-gray-500 font-mono font-bold uppercase tracking-widest block mb-2">DANH MỤC: KÊNH THOẠI</span>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex items-center justify-between text-valCyan bg-valCyan/5 p-2 rounded-lg border border-valCyan/20">
+                                <span class="flex items-center gap-2 font-mono font-bold">👉 Tạo phòng riêng [ ➕ ]</span>
+                            </div>
+                            <div class="flex items-center justify-between bg-valCard/50 p-2 rounded-lg">
+                                <span class="font-mono text-gray-300">Voice #1 (Team Thi Đấu)</span>
+                                <span class="text-[10px] text-valRed font-bold bg-valRed/10 px-1.5 rounded">Giới hạn 5</span>
+                            </div>
+                            <div class="flex items-center justify-between bg-valCard/50 p-2 rounded-lg">
+                                <span class="font-mono text-gray-300">Voice #2 (Team Thi Đấu)</span>
+                                <span class="text-[10px] text-valRed font-bold bg-valRed/10 px-1.5 rounded">Giới hạn 5</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl hover-scale group">
+                <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-circle-play text-valRed text-xl"></i> Phòng Máy Chiếu / Spectate Booth
+                    </h3>
+                    <span class="bg-valRed/10 text-valRed px-3 py-1 rounded-full text-[10px] font-bold border border-valRed/20">TRỰC TIẾP GIẢI ĐẤU</span>
+                </div>
+                <!-- Giả lập màn hình rạp chiếu phim ảo -->
+                <div class="relative bg-[#050608] rounded-xl overflow-hidden aspect-video border border-gray-800 shadow-inner flex flex-col items-center justify-center p-4 max-w-4xl mx-auto">
+                    <div class="absolute inset-0 bg-gradient-to-t from-valRed/10 to-transparent pointer-events-none"></div>
+                    <div class="text-gray-700 text-6xl mb-4 animate-pulse"><i class="fa-brands fa-youtube"></i></div>
+                    <p class="text-center font-bold text-sm text-white tracking-widest uppercase">CHƯA CÓ TRẬN ĐẤU PHÁT SÓNG</p>
+                    <p class="text-center text-xs text-gray-500 mt-2 max-w-md leading-relaxed">
+                        Link Livestream (YouTube, Twitch hoặc Discord) sẽ được Ban Tổ Chức cập nhật tại khu vực này khi các trận đấu Bán Kết và Chung Kết diễn ra!
+                    </p>
+                </div>
+            </div>
+
+        </section>
+
+        <section id="register-tab" class="tab-content hidden">
+            <div class="max-w-2xl mx-auto bg-valCard border border-gray-800 p-8 rounded-2xl shadow-2xl animate-fadeIn">
+                <div class="text-center mb-6">
+                    <span class="text-xs bg-valRed/10 text-valRed border border-valRed/30 px-3.5 py-1.5 rounded-full font-bold uppercase tracking-widest font-mono">EVAN CUP</span>
+                    <h3 class="font-display text-2xl font-black text-white mt-3 uppercase tracking-wide">Đơn Đăng Ký Thi Đấu</h3>
+                    <p class="text-sm text-gray-400 mt-1">Đội hình giới hạn <span class="text-valRed font-bold font-mono">21 điểm</span> để giữ tính cạnh tranh sòng phẳng nhất</p>
+                </div>
+
+                <form id="registration-form" onsubmit="handleRegistration(event)" class="space-y-5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Tên Discord của bạn *</label>
+                            <input type="text" id="reg-discord" required placeholder="Ví dụ: evan_cool" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">
+                                Discord ID *
+                                <span onclick="openDiscordIdGuide()" class="cursor-pointer inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition" title="Hướng dẫn lấy Discord ID">?</span>
+                            </label>
+                            <input type="text" id="reg-discord-id" required placeholder="Ví dụ: 123456789012345678" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Riot ID (Tên#Tag) *</label>
+                            <input type="text" id="reg-riotid" required placeholder="Ví dụ: Jett#LOL" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Mức Rank Cao Nhất *</label>
+                            <select id="reg-rank" onchange="updateFormPoints()" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                                <option value="Iron (Sắt)">Iron (Sắt) — 1đ</option>
+                                <option value="Bronze (Đồng)">Bronze (Đồng) — 2đ</option>
+                                <option value="Silver (Bạc)">Silver (Bạc) — 3đ</option>
+                                <option value="Gold (Vàng)" selected>Gold (Vàng) — 4đ</option>
+                                <option value="Platinum (Bạch Kim)">Platinum (Bạch Kim) — 5đ</option>
+                                <option value="Diamond (Kim Cương)">Diamond (Kim Cương) — 6đ</option>
+                                <option value="Ascendant (Thượng Nhân)">Ascendant (Thượng Nhân) — 7đ</option>
+                                <option value="Immortal (Bất Tử)">Immortal (Bất Tử) — 8đ</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Hình Thức Tham Gia *</label>
+                            <select id="reg-type" onchange="toggleTeamInputs()" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                                <option value="Solo">Đăng ký Solo (Cá nhân lẻ)</option>
+                                <option value="Duo">Đăng ký Duo (Nhóm 2 người - Tối đa 9đ)</option>
+                                <option value="Trio">Đăng ký Trio (Nhóm 3 người - Tối đa 13đ)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Vị Trí Sở Trường *</label>
+                            <select id="reg-role" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                                <option value="Duelist">Duelist (Đối đầu / Mở đường)</option>
+                                <option value="Initiator">Initiator (Khởi tranh / Support)</option>
+                                <option value="Sentinel">Sentinel (Hộ vệ / Trấn giữ)</option>
+                                <option value="Controller">Controller (Kiểm soát / Smoke)</option>
+                                <option value="Flex">Flex (Vị trí linh hoạt)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="teammate-fields" class="space-y-4 bg-valBg/50 p-4 rounded-xl border border-gray-800 hidden">
+                        <!-- Javascript sẽ tự động sinh trường nhập ở đây -->
+                    </div>
+
+                    <div class="bg-valBg/90 p-4 rounded-xl flex items-center justify-between border border-gray-800">
+                        <span class="text-gray-400 text-xs">Tổng điểm đánh giá: <span id="form-points-rules" class="text-gray-500 italic ml-1">(Điểm đơn lẻ)</span></span>
+                        <span id="form-points-badge" class="text-2xl font-black text-emerald-400 font-mono bg-emerald-500/10 px-4 py-1.5 rounded-lg border border-emerald-500/30">4đ</span>
+                    </div>
+
+                    <button type="submit" class="w-full bg-valRed hover:bg-valRed/90 text-white font-display font-black py-3 px-6 rounded-xl transition uppercase tracking-wider text-sm glow-red">
+                        <i class="fa-solid fa-paper-plane mr-2"></i>Gửi Đơn Lên Phòng Duyệt
+                    </button>
+                </form>
+
+                <!-- Tự chỉnh sửa thông tin -->
+                <div class="mt-8 bg-valBg/60 border border-gray-800 p-5 rounded-xl">
+                    <h3 class="text-sm font-bold text-amber-400 uppercase flex items-center gap-2 mb-4"><i class="fa-solid fa-pen-to-square"></i> Chỉnh Sửa Thông Tin</h3>
+                    <p class="text-xs text-gray-500 mb-3">Đã đăng ký rồi? Nhập Discord ID để tra cứu và sửa thông tin.</p>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="edit-discord-id" placeholder="Discord ID của bạn" class="flex-1 bg-valBg border border-gray-800 rounded-lg px-4 py-2.5 text-sm text-white outline-none focus:border-amber-400 transition">
+                        <button onclick="lookupPlayerForEdit()" class="bg-amber-500/20 text-amber-400 border border-amber-400/30 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-amber-500/30 transition shrink-0">
+                            <i class="fa-solid fa-search mr-1"></i>Tra Cứu
+                        </button>
+                    </div>
+                    <div id="edit-player-form" class="hidden space-y-3">
+                        <input type="hidden" id="edit-player-id">
+                        <div id="edit-player-status" class="text-xs text-emerald-400"></div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Tên hiển thị</label><input type="text" id="edit-display-name" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-400"></div>
+                            <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Riot ID</label><input type="text" id="edit-riot-id" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-400"></div>
+                            <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Rank</label><select id="edit-rank" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                                <option value="Iron (Sắt)">Iron (Sắt)</option><option value="Bronze (Đồng)">Bronze (Đồng)</option>
+                                <option value="Silver (Bạc)">Silver (Bạc)</option><option value="Gold (Vàng)">Gold (Vàng)</option>
+                                <option value="Platinum (Bạch Kim)">Platinum (Bạch Kim)</option><option value="Diamond (Kim Cương)">Diamond (Kim Cương)</option>
+                                <option value="Ascendant (Thượng Nhân)">Ascendant (Thượng Nhân)</option><option value="Immortal (Bất Tử)">Immortal (Bất Tử)</option>
+                            </select></div>
+                            <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Vai trò</label><select id="edit-role" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                                <option value="Duelist">Duelist</option><option value="Initiator">Initiator</option>
+                                <option value="Sentinel">Sentinel</option><option value="Controller">Controller</option><option value="Flex">Flex</option>
+                            </select></div>
+                            <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Loại</label><select id="edit-type" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                                <option value="Solo">Solo</option><option value="Duo">Duo</option><option value="Trio">Trio</option>
+                            </select></div>
+                        </div>
+                        <button onclick="savePlayerEdit()" class="bg-amber-500/20 text-amber-400 border border-amber-400/30 px-4 py-2 rounded-lg text-xs font-bold hover:bg-amber-500/30 transition">
+                            <i class="fa-solid fa-save mr-1"></i>Lưu Thay Đổi
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- (Đăng ký đội đã được gỡ bỏ) -->
+        </section>
+
+        <section id="admin-tab" class="tab-content hidden">
+
+            <!-- Thanh trạng thái -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-3 mb-6 bg-valCard border border-gray-800 p-4 rounded-2xl shadow-lg animate-fadeIn">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <p class="text-sm font-bold uppercase tracking-wider text-white font-mono"><i class="fa-solid fa-user-shield text-valCyan mr-1"></i> Chế độ điều phối giải đấu hoạt động</p>
+                </div>
+                <button onclick="logoutAdmin()" class="bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-red-200 font-bold px-4 py-2 rounded-xl text-xs transition duration-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-sign-out-alt"></i> Đăng Xuất Admin
+                </button>
+            </div>
+
+            <!-- Thanh tìm kiếm tuyển thủ -->
+            <div class="mb-6 bg-valCard border border-gray-800 p-4 rounded-2xl shadow-lg">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-search text-gray-500"></i>
+                    <input type="text" id="admin-player-search" oninput="renderAdmin()" placeholder="Tìm kiếm tuyển thủ (Discord, Riot ID, Rank, Vai trò)..." class="flex-1 bg-valBg border border-gray-800 rounded-lg px-4 py-2.5 text-sm text-white outline-none focus:border-valCyan transition">
+                    <span id="player-count-badge" class="text-[10px] bg-valCyan/10 text-valCyan px-2.5 py-1 rounded-full font-mono font-bold shrink-0">0</span>
+                </div>
+            </div>
+
+            <!-- Thanh điều hướng phụ trong Admin -->
+            <div class="mb-6 overflow-x-auto">
+                <div class="flex gap-1 bg-valCard border border-gray-800 p-1.5 rounded-2xl shadow-lg min-w-max">
+                    <button onclick="switchAdminSubTab('players')" id="admin-sub-btn-players" class="admin-sub-btn px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap bg-valRed text-white glow-red flex items-center gap-1.5">
+                        <i class="fa-solid fa-users"></i> Người Chơi
+                    </button>
+                    <button onclick="switchAdminSubTab('teams')" id="admin-sub-btn-teams" class="admin-sub-btn px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-1.5">
+                        <i class="fa-solid fa-scale-balanced"></i> Đội Hình
+                    </button>
+                    <button onclick="switchAdminSubTab('veto')" id="admin-sub-btn-veto" class="admin-sub-btn px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-1.5">
+                        <i class="fa-solid fa-map-location-dot"></i> Map VETO
+                    </button>
+                    <button onclick="switchAdminSubTab('config')" id="admin-sub-btn-config" class="admin-sub-btn px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-1.5">
+                        <i class="fa-solid fa-gears"></i> Cấu Hình
+                    </button>
+                    <button onclick="switchAdminSubTab('discipline')" id="admin-sub-btn-discipline" class="admin-sub-btn px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-1.5">
+                        <i class="fa-solid fa-gavel"></i> Kỷ Luật
+                    </button>
+                    <button onclick="switchAdminSubTab('data')" id="admin-sub-btn-data" class="admin-sub-btn px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap text-gray-400 hover:text-white hover:bg-gray-800/50 flex items-center gap-1.5">
+                        <i class="fa-solid fa-chart-simple"></i> Dữ Liệu
+                    </button>
+                </div>
+            </div>
+
+            <!-- ===== MỤC 1: QUẢN LÝ NGƯỜI CHƠI ===== -->
+            <div id="admin-sub-players" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-users text-valRed text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Quản Lý Người Chơi</h3>
+                </div>
+                <div class="p-6 space-y-6">
+                    <!-- Hàng 1: Nhập Nhanh + Thông Báo -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                            <h4 class="text-xs font-bold text-yellow-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-bolt"></i> Nhập Nhanh (Auto-Parse)</h4>
+                            <div class="flex gap-2">
+                                <textarea id="quick-import-area" rows="2" placeholder="Dán nội dung chat ticket..." class="flex-1 bg-valBg border border-gray-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-valRed font-mono"></textarea>
+                                <button onclick="parseQuickImport()" class="bg-gray-800 hover:bg-gray-700 text-valCyan font-bold text-xs px-4 py-2 rounded-lg transition shrink-0 self-end">
+                                    <i class="fa-solid fa-file-import mr-1"></i>Nạp
+                                </button>
+                            </div>
+                        </div>
+                        <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                            <h4 class="text-xs font-bold text-amber-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-bullhorn"></i> Gửi Thông Báo & Cảnh Báo</h4>
+                            <div class="flex gap-2">
+                                <input type="text" id="admin-notify-player-id" placeholder="Discord ID (để trống = gửi tất cả)" class="flex-1 bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-400 transition">
+                                <button onclick="sendPlayerNotification()" class="bg-amber-500/20 text-amber-400 border border-amber-400/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-amber-500/30 transition shrink-0">
+                                    <i class="fa-solid fa-paper-plane"></i> Gửi
+                                </button>
+                            </div>
+                            <textarea id="admin-notify-message" rows="2" placeholder="Nội dung thông báo..." class="w-full mt-2 bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-400 transition"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Hàng 2: Hàng Chờ + Đội Chờ -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-valBg/60 border border-gray-800 rounded-xl flex flex-col min-h-[320px]">
+                            <div class="flex justify-between items-center p-4 pb-2 border-b border-gray-800">
+                                <h4 class="text-xs font-bold text-white uppercase flex items-center gap-1.5"><i class="fa-solid fa-list text-valRed"></i> Hàng Chờ Duyệt</h4>
+                                <span id="player-list-count" class="text-[10px] bg-valBg text-valRed px-2.5 py-0.5 rounded-full font-mono font-bold border border-valRed/20">0</span>
+                            </div>
+                            <div id="player-list-container" class="space-y-2 overflow-y-auto flex-grow p-4 pt-2"></div>
+                        </div>
+                        <div class="bg-valBg/60 border border-gray-800 rounded-xl flex flex-col min-h-[320px]">
+                            <div class="flex justify-between items-center p-4 pb-2 border-b border-gray-800">
+                                <h4 class="text-xs font-bold text-valCyan uppercase flex items-center gap-1.5"><i class="fa-solid fa-users-gear"></i> Đội Chờ Duyệt</h4>
+                            </div>
+                            <div id="pending-teams-list" class="space-y-2 overflow-y-auto flex-grow p-4 pt-2 text-xs"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== MỤC 2: ĐỘI HÌNH & THI ĐẤU ===== -->
+            <div id="admin-sub-teams" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-scale-balanced text-valCyan text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Đội Hình & Thi Đấu</h3>
+                </div>
+                <div class="p-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                        <p class="text-xs text-gray-400">Trần đội hình <strong class="text-valRed">≤ 21 điểm</strong>. Kéo thả hoặc bấm T1/T2 để xếp người.</p>
+                        <div class="flex gap-2">
+                            <button onclick="exportTeamsToClipboard()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-xl text-xs transition border border-gray-700" title="Copy danh sách ra Discord">
+                                <i class="fa-solid fa-copy"></i> Sao Chép
+                            </button>
+                            <button onclick="autoDraftBalancedTeams()" class="bg-gradient-to-r from-valRed to-valCyan text-white font-black px-4 py-2 rounded-xl text-xs transition shadow-md uppercase">
+                                <i class="fa-solid fa-shuffle mr-1"></i>Tự Động Draft!
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-valBg/50 p-4 rounded-xl border border-gray-800 flex flex-col justify-between min-h-[300px]">
+                            <div>
+                                <div class="flex justify-between items-center mb-3 gap-2">
+                                    <input type="text" id="team1-name-input" value="Team Cyan" placeholder="Tên đội 1" class="flex-1 bg-valBg border border-valCyan/30 rounded-lg px-2 py-1 text-xs text-white font-bold uppercase">
+                                    <span id="team1-status" class="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-mono font-bold shrink-0">Hợp Lệ</span>
+                                </div>
+                                <div id="team1-slots" class="space-y-2"></div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-gray-800 flex justify-between items-center">
+                                <span class="text-xs text-gray-400">Tổng điểm:</span>
+                                <span id="team1-total-points" class="text-xl font-black font-mono text-valCyan bg-valCyan/10 px-3 py-1 rounded border border-valCyan/20">0đ</span>
+                            </div>
+                        </div>
+                        <div class="bg-valBg/50 p-4 rounded-xl border border-gray-800 flex flex-col justify-between min-h-[300px]">
+                            <div>
+                                <div class="flex justify-between items-center mb-3 gap-2">
+                                    <input type="text" id="team2-name-input" value="Team Red" placeholder="Tên đội 2" class="flex-1 bg-valBg border border-valRed/30 rounded-lg px-2 py-1 text-xs text-white font-bold uppercase">
+                                    <span id="team2-status" class="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-mono font-bold shrink-0">Hợp Lệ</span>
+                                </div>
+                                <div id="team2-slots" class="space-y-2"></div>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-gray-800 flex justify-between items-center">
+                                <span class="text-xs text-gray-400">Tổng điểm:</span>
+                                <span id="team2-total-points" class="text-xl font-black font-mono text-valRed bg-valRed/10 px-3 py-1 rounded border border-valRed/20">0đ</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Thay người -->
+                    <div class="mt-6 bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-valCyan mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-arrows-rotate"></i> Thay Người</h4>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="text" id="sub-player-id" placeholder="Discord ID người ra" class="flex-1 min-w-[160px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <input type="text" id="sub-new-team" placeholder="Tên đội mới" class="flex-1 min-w-[160px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <button onclick="substitutePlayer()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-4 py-2 rounded-lg text-xs font-bold hover:bg-valCyan/30 transition whitespace-nowrap">
+                                <i class="fa-solid fa-arrows-rotate mr-1"></i>Thay
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== MỤC 3: MAP VETO BO3 ===== -->
+            <div id="admin-sub-veto" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-map-location-dot text-purple-400 text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Map VETO BO3</h3>
+                    <span id="veto-match-label" class="text-[10px] text-gray-500 ml-auto"></span>
+                    <button onclick="resetMapVeto()" id="veto-reset-btn" class="hidden bg-valRed/15 hover:bg-valRed text-valRed hover:text-white px-3 py-1.5 rounded border border-valRed/30 transition font-mono text-xs">
+                        <i class="fa-solid fa-rotate-left mr-1"></i> Làm Mới
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div class="bg-valBg p-4 rounded-xl border border-valCyan/20 mb-6 flex flex-col sm:flex-row justify-between items-center gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-2.5 h-2.5 rounded-full bg-valCyan animate-ping"></div>
+                            <span id="veto-status-text" class="text-xs font-bold text-white tracking-wide uppercase">Chọn trận để bắt đầu VETO</span>
+                        </div>
+                        <div class="flex gap-2 text-[10px] font-mono">
+                            <span class="bg-valCyan/10 text-valCyan border border-valCyan/20 px-2 py-0.5 rounded font-bold">Cyan</span>
+                            <span class="bg-valRed/10 text-valRed border border-valRed/20 px-2 py-0.5 rounded font-bold">Red</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4" id="map-veto-grid">
+                        <div id="map-summit" onclick="vetoMap('summit')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <div class="w-full h-full" style="background: linear-gradient(135deg, #1a0a2e 0%, #e91e63 100%);"></div>
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">SUMMIT</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map-breeze" onclick="vetoMap('breeze')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <img src="https://media.valorant-api.com/maps/2fb9a4fd-47b8-4e7d-a969-74b5946cbeeb/splash.png" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">BREEZE</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map-ascent" onclick="vetoMap('ascent')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <img src="https://media.valorant-api.com/maps/7eaecc1b-4337-bbf6-6ab9-04b8f06b3319/splash.png" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">ASCENT</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map-haven" onclick="vetoMap('haven')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <img src="https://media.valorant-api.com/maps/2bee0dc9-4ffe-519b-1cbd-7fbe763a6047/splash.png" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">HAVEN</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map-split" onclick="vetoMap('split')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <img src="https://media.valorant-api.com/maps/d960549e-485c-e861-8d71-aa9d1aed12a2/splash.png" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">SPLIT</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map-sunset" onclick="vetoMap('sunset')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <img src="https://media.valorant-api.com/maps/92584fbe-486a-b1b2-9faa-39b0f486b498/splash.png" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">SUNSET</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map-icebox" onclick="vetoMap('icebox')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <img src="https://media.valorant-api.com/maps/e2ad5c54-4114-a870-9641-8ea21279579a/splash.png" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">ICEBOX</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map-lotus" onclick="vetoMap('lotus')" class="map-card cursor-pointer bg-valBg border border-gray-800 rounded-xl overflow-hidden relative group">
+                            <div class="aspect-[3/4] w-full relative">
+                                <img src="https://media.valorant-api.com/maps/2fe4ed3a-450a-948b-6d6b-e89a78e680a9/splash.png" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none action-overlay"></div>
+                                <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                                    <h4 class="font-display font-black text-xs text-white tracking-wider">LOTUS</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== MỤC 4: CẤU HÌNH ===== -->
+            <div id="admin-sub-config" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-gears text-gray-400 text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Cấu Hình</h3>
+                </div>
+                <div class="p-6 space-y-6">
+                    <!-- Webhook -->
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-yellow-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-bolt"></i> Webhook Discord</h4>
+                        <div class="flex gap-2">
+                            <input type="text" id="webhook-url-input" placeholder="https://discord.com/api/webhooks/..." class="flex-1 bg-valBg border border-gray-800 rounded-lg px-4 py-2.5 text-sm text-white focus:border-valCyan transition outline-none">
+                            <button onclick="saveWebhookUrl()" class="bg-yellow-500/20 text-yellow-400 border border-yellow-400/30 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-yellow-500/30 transition whitespace-nowrap">
+                                <i class="fa-solid fa-save mr-1"></i>Lưu
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Ticket Tool Guide -->
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-valRed mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-circle-info"></i> Hướng Dẫn Ticket Tool</h4>
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <div class="md:w-1/2 bg-valBg/90 p-3 rounded-xl border border-gray-800">
+                                <div class="grid grid-cols-2 gap-2 text-center">
+                                    <div onclick="showGuideDetail('category')" class="cursor-pointer bg-valCard hover:bg-valRed/15 border border-gray-800 hover:border-valRed p-2.5 rounded-lg"><div class="text-valRed font-bold text-[10px]"><i class="fa-solid fa-folder-open"></i> Danh mục</div></div>
+                                    <div onclick="showGuideDetail('limits')" class="cursor-pointer bg-valCard hover:bg-valCyan/15 border border-gray-800 hover:border-valCyan p-2.5 rounded-lg"><div class="text-valCyan font-bold text-[10px]"><i class="fa-solid fa-hand-fist"></i> Giới Hạn</div></div>
+                                    <div onclick="showGuideDetail('panel-msg')" class="cursor-pointer bg-valCard hover:bg-valRed/15 border border-gray-800 hover:border-valRed p-2.5 rounded-lg"><div class="text-valRed font-bold text-[10px]">Edit Panel</div></div>
+                                    <div onclick="showGuideDetail('ticket-msg')" class="cursor-pointer bg-valCard hover:bg-valCyan/15 border border-gray-800 hover:border-valCyan p-2.5 rounded-lg"><div class="text-valCyan font-bold text-[10px]">Edit Ticket</div></div>
+                                </div>
+                            </div>
+                            <div class="md:w-1/2 bg-valBg p-4 rounded-xl border border-gray-800" id="guide-display-box">
+                                <h4 id="guide-display-title" class="text-white font-bold mb-2 font-display text-xs"><i class="fa-solid fa-lightbulb text-valCyan"></i> Click vào nút bên trái</h4>
+                                <p id="guide-display-text" class="text-xs text-gray-400">Chỉ dẫn tiếng Việt sẽ xuất hiện tại đây.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== MỤC 5: KỶ LUẬT & NHẬT KÝ ===== -->
+            <div id="admin-sub-discipline" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-gavel text-red-400 text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Kỷ Luật & Nhật Ký</h3>
+                </div>
+                <div class="p-6 space-y-6">
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-orange-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-scale-balanced"></i> Khiếu Nại Cần Xử Lý</h4>
+                        <div id="dispute-list" class="space-y-2 max-h-[200px] overflow-y-auto text-xs">
+                            <p class="text-gray-500 text-center py-2">Đang tải...</p>
+                        </div>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-red-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-triangle-exclamation"></i> Thêm Vi Phạm</h4>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="text" id="penalty-player-id" placeholder="Discord ID" class="flex-1 min-w-[120px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <input type="text" id="penalty-player-name" placeholder="Tên" class="flex-1 min-w-[120px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <input type="text" id="penalty-reason" placeholder="Lý do" class="flex-[2] min-w-[160px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                            <select id="penalty-severity" class="bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                                <option value="warning">Cảnh cáo</option>
+                                <option value="penalty">Phạt</option>
+                                <option value="dq">DQ</option>
+                            </select>
+                            <button onclick="addPenalty()" class="bg-red-500/20 text-red-400 border border-red-400/30 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-500/30 transition whitespace-nowrap">
+                                <i class="fa-solid fa-plus mr-1"></i>Thêm
+                            </button>
+                        </div>
+                        <div id="penalty-list" class="mt-3 space-y-1 max-h-[180px] overflow-y-auto text-xs">
+                            <p class="text-gray-500 text-center py-2">Chưa có vi phạm</p>
+                        </div>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-gray-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-clipboard-list"></i> Nhật Ký Hành Động</h4>
+                        <div id="audit-log-list" class="space-y-1 max-h-[250px] overflow-y-auto text-xs">
+                            <p class="text-gray-500 text-center py-2">Đang tải...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== MỤC 6: THỐNG KÊ & DỮ LIỆU ===== -->
+            <div id="admin-sub-data" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-chart-simple text-emerald-400 text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Thống Kê & Dữ Liệu</h3>
+                </div>
+                <div class="p-6 space-y-6">
+                    <div id="admin-stats-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center"><p class="text-[10px] text-gray-400">Tuyển thủ</p><p class="text-xl font-black text-white" id="stat-players">-</p></div>
+                        <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center"><p class="text-[10px] text-gray-400">Trận (tổng)</p><p class="text-xl font-black text-white" id="stat-matches">-</p></div>
+                        <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center"><p class="text-[10px] text-gray-400">Đã xong</p><p class="text-xl font-black text-emerald-400" id="stat-completed">-</p></div>
+                        <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center"><p class="text-[10px] text-gray-400">Chờ đấu</p><p class="text-xl font-black text-yellow-400" id="stat-pending">-</p></div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="exportCSV('players')" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-users mr-1"></i>Player CSV</button>
+                        <button onclick="exportCSV('matches')" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-calendar mr-1"></i>Matches CSV</button>
+                        <button onclick="exportCSV('leaderboard')" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-ranking-star mr-1"></i>BXH CSV</button>
+                        <button onclick="exportJSON()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-code mr-1"></i>All JSON</button>
+                    </div>
+
+                    <!-- Import CSV -->
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-emerald-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-file-import"></i> Import Player từ CSV</h4>
+                        <p class="text-[10px] text-gray-500 mb-2">Mỗi dòng 1 player: <code class="text-valCyan">displayName,discordId,riotId,rank,role,type,pts</code></p>
+                        <textarea id="csv-import-area" rows="4" placeholder="VD:&#10;Evan#1234,evan_123,Jett#LOL,Gold (Vàng),Duelist,Solo,4&#10;Alex#5678,alex_456,Phoenix#NA,Silver (Bạc),Initiator,Solo,3" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white font-mono outline-none focus:border-emerald-400 transition"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="importCSV()" class="bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-500/30 transition">
+                                <i class="fa-solid fa-upload mr-1"></i>Import
+                            </button>
+                            <span id="csv-import-result" class="text-[10px] text-gray-500 self-center"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <section id="schedule-tab" class="tab-content hidden">
+            <div class="max-w-5xl mx-auto" id="schedule-container">
+                <div class="bg-valCard border border-gray-800 p-4 sm:p-6 rounded-2xl shadow-xl mb-6" id="schedule-card">
+                    <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                        <i class="fa-solid fa-calendar-days text-valCyan text-xl"></i>
+                        <h3 class="font-display text-lg font-bold text-white uppercase flex-1">Lịch Thi Đấu</h3>
+                        <button onclick="toggleScheduleFullscreen()" id="btn-schedule-expand" class="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded-lg hover:bg-gray-800/50" title="Mở rộng">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                        <button onclick="toggleScheduleFullscreen()" id="btn-schedule-collapse" class="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded-lg hover:bg-gray-800/50 hidden" title="Thu gọn">
+                            <i class="fa-solid fa-compress"></i>
+                        </button>
+                    </div>
+                    <div id="admin-schedule-controls" class="hidden mb-6 bg-valBg/50 p-4 rounded-xl border border-gray-800">
+                        <h4 class="text-sm font-bold text-valCyan mb-3 uppercase">Tạo lịch tự động</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase block mb-1">Danh sách đội (cách xuống dòng)</label>
+                                <textarea id="sched-teams" rows="3" placeholder="Đội A" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white"></textarea>
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase block mb-1">Ngày bắt đầu</label>
+                                <input type="date" id="sched-date" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase block mb-1">Phút/trận</label>
+                                <input type="number" id="sched-duration" value="60" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase block mb-1">&nbsp;</label>
+                                <button onclick="generateSchedule()" class="w-full bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-valCyan/30 transition">
+                                    <i class="fa-solid fa-gear mr-1"></i>Tạo lịch
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="schedule-list" class="schedule-match-list">
+                        <div class="text-center text-gray-500 text-sm py-8">
+                            <i class="fa-solid fa-calendar-xmark text-3xl mb-2"></i>
+                            <p>Chưa có trận đấu nào.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modal nhập kết quả trận đấu -->
+        <div id="result-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 hidden">
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                    <i class="fa-solid fa-pen-to-square text-emerald-400 text-xl"></i>
+                    <h3 class="font-display text-lg font-bold text-white uppercase" id="result-modal-title">Nhập Kết Quả</h3>
+                    <button onclick="closeResultModal()" class="ml-auto text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <input type="hidden" id="result-match-id">
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1" id="result-team1-label">Đội 1</label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-white font-bold text-sm" id="result-team1-name"></span>
+                            <input type="number" id="result-score1" min="0" max="99" placeholder="0" class="w-16 bg-valBg border border-gray-800 rounded-lg px-2 py-1.5 text-center text-white font-bold font-mono text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1" id="result-team2-label">Đội 2</label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-white font-bold text-sm" id="result-team2-name"></span>
+                            <input type="number" id="result-score2" min="0" max="99" placeholder="0" class="w-16 bg-valBg border border-gray-800 rounded-lg px-2 py-1.5 text-center text-white font-bold font-mono text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Map</label>
+                        <select id="result-map" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white">
+                            <option value="">-- Chọn map --</option>
+                            <option>Summit</option><option>Breeze</option><option>Ascent</option><option>Haven</option>
+                            <option>Split</option><option>Sunset</option><option>Icebox</option><option>Lotus</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Link Stream</label>
+                        <input type="text" id="result-stream" placeholder="https://twitch.tv/..." class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">KDA đồng đội (tùy chọn)</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-valBg border border-gray-800 p-2 rounded-lg">
+                                <span class="text-[9px] text-valCyan block mb-1" id="kda-team1-label">Đội 1</span>
+                                <div class="flex gap-1">
+                                    <input type="number" id="kda-t1-k" placeholder="K" min="0" class="w-1/3 bg-valBg border border-gray-800 rounded px-1 py-1 text-center text-xs text-white">
+                                    <input type="number" id="kda-t1-d" placeholder="D" min="0" class="w-1/3 bg-valBg border border-gray-800 rounded px-1 py-1 text-center text-xs text-white">
+                                    <input type="number" id="kda-t1-a" placeholder="A" min="0" class="w-1/3 bg-valBg border border-gray-800 rounded px-1 py-1 text-center text-xs text-white">
+                                </div>
+                            </div>
+                            <div class="bg-valBg border border-gray-800 p-2 rounded-lg">
+                                <span class="text-[9px] text-valRed block mb-1" id="kda-team2-label">Đội 2</span>
+                                <div class="flex gap-1">
+                                    <input type="number" id="kda-t2-k" placeholder="K" min="0" class="w-1/3 bg-valBg border border-gray-800 rounded px-1 py-1 text-center text-xs text-white">
+                                    <input type="number" id="kda-t2-d" placeholder="D" min="0" class="w-1/3 bg-valBg border border-gray-800 rounded px-1 py-1 text-center text-xs text-white">
+                                    <input type="number" id="kda-t2-a" placeholder="A" min="0" class="w-1/3 bg-valBg border border-gray-800 rounded px-1 py-1 text-center text-xs text-white">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2 flex gap-2">
+                            <input type="text" id="kda-t1-players" placeholder="Discord IDs đội 1 (cách dấu phẩy)" class="flex-1 bg-valBg border border-gray-800 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <input type="text" id="kda-t2-players" placeholder="Discord IDs đội 2 (cách dấu phẩy)" class="flex-1 bg-valBg border border-gray-800 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        </div>
+                        <p class="text-[9px] text-gray-500 mt-1">Nhập Discord ID của 5 thành viên mỗi đội để lưu KDA cá nhân</p>
+                    </div>
+                    <button onclick="submitMatchResult()" class="w-full bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 py-2.5 rounded-lg font-bold hover:bg-emerald-500/30 transition">
+                        <i class="fa-solid fa-check mr-1"></i>Xác nhận kết quả
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal gán MVP -->
+        <div id="mvp-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 hidden">
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                    <i class="fa-solid fa-star text-yellow-400 text-xl"></i>
+                    <h3 class="font-display text-lg font-bold text-white uppercase">Gán MVP</h3>
+                    <button onclick="closeMvpModal()" class="ml-auto text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <input type="hidden" id="mvp-match-id">
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Discord ID</label>
+                        <input type="text" id="mvp-discord-id" placeholder="Discord ID của MVP" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Tên hiển thị</label>
+                        <input type="text" id="mvp-player-name" placeholder="Tên người chơi" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+                    <button onclick="submitMvp()" class="w-full bg-yellow-500/20 text-yellow-400 border border-yellow-400/30 py-2.5 rounded-lg font-bold hover:bg-yellow-500/30 transition">
+                        <i class="fa-solid fa-star mr-1"></i>Gán MVP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal khiếu nại kết quả -->
+        <div id="dispute-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 hidden">
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                    <i class="fa-solid fa-scale-balanced text-orange-400 text-xl"></i>
+                    <h3 class="font-display text-lg font-bold text-white uppercase">Khiếu Nại Kết Quả</h3>
+                    <button onclick="closeDisputeModal()" class="ml-auto text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <input type="hidden" id="dispute-match-id">
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Đội khiếu nại</label>
+                        <select id="dispute-team" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white">
+                            <option value="">-- Chọn đội --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Discord ID người gửi *</label>
+                        <input type="text" id="dispute-filed-by" placeholder="Discord ID của bạn" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Lý do *</label>
+                        <select id="dispute-reason" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white">
+                            <option value="Sai tỉ số">Sai tỉ số</option>
+                            <option value="Sai người thắng">Sai người thắng</option>
+                            <option value="Sai map">Sai map</option>
+                            <option value="Đối thủ sai luật">Đối thủ sai luật</option>
+                            <option value="Khác">Khác</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 uppercase block mb-1">Chi tiết</label>
+                        <textarea id="dispute-detail" rows="3" placeholder="Mô tả chi tiết vấn đề..." class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-sm text-white"></textarea>
+                    </div>
+                    <button onclick="submitDispute()" class="w-full bg-orange-500/20 text-orange-400 border border-orange-400/30 py-2.5 rounded-lg font-bold hover:bg-orange-500/30 transition">
+                        <i class="fa-solid fa-paper-plane mr-1"></i>Gửi Khiếu Nại
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal hướng dẫn lấy Discord ID -->
+        <div id="discord-guide-modal" class="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+                    <h3 class="font-display text-lg font-bold text-white uppercase flex items-center gap-2">
+                        <i class="fa-brands fa-discord text-indigo-400"></i> Cách Lấy Discord ID
+                    </h3>
+                    <button onclick="document.getElementById('discord-guide-modal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="space-y-5 text-sm">
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-indigo-500/20 text-indigo-400 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                            <span class="text-white font-bold">Mở Discord</span>
+                        </div>
+                        <p class="text-gray-400 text-xs ml-8">Mở ứng dụng Discord trên PC hoặc trình duyệt.</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-indigo-500/20 text-indigo-400 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                            <span class="text-white font-bold">Vào Settings</span>
+                        </div>
+                        <p class="text-gray-400 text-xs ml-8">Bấm vào bánh răng <i class="fa-solid fa-gear"></i> ở góc dưới trái (cạnh tên và avatar).</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-indigo-500/20 text-indigo-400 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                            <span class="text-white font-bold">Chọn "Advanced"</span>
+                        </div>
+                        <p class="text-gray-400 text-xs ml-8">Trong menu trái, kéo xuống và chọn <strong class="text-indigo-400">Advanced</strong> (Nâng cao).</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-indigo-500/20 text-indigo-400 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                            <span class="text-white font-bold">Bật "Developer Mode"</span>
+                        </div>
+                        <p class="text-gray-400 text-xs ml-8">Bật nút gạt <strong class="text-indigo-400">Developer Mode</strong> (Chế độ nhà phát triển) lên màu xanh.</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-indigo-500/20 text-indigo-400 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">5</span>
+                            <span class="text-white font-bold">Chuột phải vào tên bạn</span>
+                        </div>
+                        <p class="text-gray-400 text-xs ml-8">Trở về kênh chat, chuột phải vào tên hoặc avatar của bạn → chọn <strong class="text-indigo-400">Copy ID</strong>.</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="bg-indigo-500/20 text-indigo-400 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0">6</span>
+                            <span class="text-white font-bold">Dán vào ô Discord ID</span>
+                        </div>
+                        <p class="text-gray-400 text-xs ml-8">Dãy số vừa copy là Discord ID của bạn. Dán vào ô bên cạnh để hoàn tất đăng ký.</p>
+                    </div>
+                </div>
+                <div class="mt-4 bg-indigo-500/10 border border-indigo-500/30 p-3 rounded-xl">
+                    <p class="text-xs text-indigo-300 flex items-start gap-2">
+                        <i class="fa-solid fa-lightbulb mt-0.5"></i>
+                        <span>Discord ID là dãy số gồm <strong>17-19 chữ số</strong>, <strong>không phải</strong> là tên hiển thị hay email. Ví dụ: <code class="text-white bg-valBg px-1 rounded">123456789012345678</code></span>
+                    </p>
+                </div>
+                <button onclick="document.getElementById('discord-guide-modal').classList.add('hidden')" class="w-full mt-4 bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 py-2.5 rounded-lg font-bold hover:bg-indigo-500/30 transition text-sm">
+                    <i class="fa-solid fa-check mr-1"></i>Đã hiểu!
+                </button>
+            </div>
+        </div>
+
+        <section id="leaderboard-tab" class="tab-content hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl">
+                    <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                        <i class="fa-solid fa-ranking-star text-yellow-400 text-xl"></i>
+                        <h3 class="font-display text-lg font-bold text-white uppercase">Bảng Xếp Hạng Tuyển Thủ</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-gray-400 uppercase border-b border-gray-800">
+                                    <th class="py-3 px-3 text-center">#</th>
+                                    <th class="py-3 px-3 text-left">Tên</th>
+                                    <th class="py-3 px-3 text-center">Elo</th>
+                                    <th class="py-3 px-3 text-center">Rank</th>
+                                    <th class="py-3 px-3 text-center">Thắng</th>
+                                    <th class="py-3 px-3 text-center">Thua</th>
+                                    <th class="py-3 px-3 text-center">MVP</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="mt-6 bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl">
+                    <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                        <i class="fa-solid fa-table-cells text-valCyan text-xl"></i>
+                        <h3 class="font-display text-lg font-bold text-white uppercase">Bảng Xếp Hạng Đội</h3>
+                    </div>
+                    <div id="standings-container" class="space-y-4"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="admin-login-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4 hidden">
+        <div class="bg-valCard border border-gray-800 max-w-sm w-full p-6 rounded-2xl relative shadow-2xl">
+            <h3 class="font-display text-lg font-bold text-white uppercase text-center mb-4"><i class="fa-solid fa-lock text-valCyan mr-2 animate-pulse"></i>Quyền Điều Hành</h3>
+            <input type="password" id="admin-password-input" placeholder="Nhập mã PIN bảo mật" class="w-full bg-valBg border border-gray-800 rounded-xl px-4 py-2.5 text-white outline-none focus:border-valRed text-center tracking-widest font-mono">
+            <div class="flex gap-3 mt-4">
+                <button onclick="closeAdminLoginModal()" class="w-1/2 bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 rounded-xl text-xs">Hủy</button>
+                <button onclick="checkAdminPassword()" class="w-1/2 bg-valRed hover:bg-valDarkRed text-white font-bold py-2.5 rounded-xl text-xs">Xác Nhận</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4 hidden">
+        <div class="bg-valCard border border-gray-800 max-w-2xl w-full rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 bg-valCard z-10 flex items-center gap-2 p-4 border-b border-gray-800">
+                <i class="fa-solid fa-user text-valCyan text-xl"></i>
+                <h3 class="font-display text-lg font-bold text-white uppercase" id="profile-name">Hồ Sơ</h3>
+                <button onclick="closeProfile()" class="ml-auto text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-4 text-xs" id="profile-content">
+                <div class="grid grid-cols-2 gap-3" id="profile-info"></div>
+                <div class="grid grid-cols-2 gap-3" id="profile-kda-charts">
+                    <div class="bg-valBg border border-gray-800 p-3 rounded-xl">
+                        <h4 class="font-bold text-white mb-2">KDA</h4>
+                        <canvas id="kda-chart" height="120"></canvas>
+                    </div>
+                    <div class="bg-valBg border border-gray-800 p-3 rounded-xl">
+                        <h4 class="font-bold text-white mb-2">W/L</h4>
+                        <canvas id="wl-chart" height="120"></canvas>
+                    </div>
+                </div>
+                <div class="bg-valBg border border-gray-800 p-3 rounded-xl">
+                    <h4 class="font-bold text-white mb-2">Biểu Đồ Elo</h4>
+                    <canvas id="elo-chart" height="160"></canvas>
+                </div>
+                <div class="bg-valBg border border-gray-800 p-3 rounded-xl" id="profile-h2h">
+                    <h4 class="font-bold text-white mb-2">Đối Đầu</h4>
+                    <div class="flex gap-2">
+                        <input type="text" id="h2h-opponent" placeholder="Discord ID đối thủ" class="flex-1 bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+                        <button onclick="loadH2H()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg text-xs font-bold">So sánh</button>
+                    </div>
+                    <div id="h2h-result" class="mt-2"></div>
+                </div>
+                <div class="bg-valBg border border-gray-800 p-3 rounded-xl">
+                    <h4 class="font-bold text-white mb-2">Lịch Sử Trận</h4>
+                    <div id="profile-matches" class="space-y-1 max-h-48 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<section id="bracket-tab" class="tab-content hidden">
+    <div class="max-w-5xl mx-auto">
+        <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl mb-6">
+            <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                <i class="fa-solid fa-diagram-project text-valCyan text-xl"></i>
+                <h3 class="font-display text-lg font-bold text-white uppercase">Vòng Playoff</h3>
+                <button id="btn-generate-playoff" onclick="generatePlayoff()" class="hidden ml-auto text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-400/30 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-500/30 transition">
+                    <i class="fa-solid fa-shuffle mr-1"></i>Tạo Playoff từ BXH
+                </button>
+            </div>
+            <div id="bracket-container" class="space-y-4">
+                <div class="text-center text-gray-500 text-sm py-8">
+                    <i class="fa-solid fa-diagram-project text-3xl mb-2"></i>
+                    <p>Hoàn thành vòng bảng để tạo playoff.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="stream-tab" class="tab-content hidden">
+    <div class="max-w-6xl mx-auto">
+        <!-- Live Scoreboard Hero -->
+        <div id="stream-live-hero" class="mb-6">
+            <div class="bg-gradient-to-r from-gray-950 via-valCard to-gray-950 border-2 border-valCyan/30 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,242,254,0.15)] relative">
+                <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(0,242,254,0.08)_0%,transparent_70%)] pointer-events-none"></div>
+                <div class="p-6 sm:p-8 text-center relative">
+                    <div class="flex items-center justify-center gap-3 mb-4">
+                        <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+                        <span class="text-[10px] font-bold text-valCyan uppercase tracking-[0.2em] font-mono" id="stream-live-badge">LIVESTREAM CHƯA KÍCH HOẠT</span>
+                        <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+                    </div>
+
+                    <!-- Main Scoreboard -->
+                    <div id="stream-idle-state" class="py-8">
+                        <i class="fa-solid fa-tower-broadcast text-6xl text-gray-700 mb-4"></i>
+                        <p class="text-gray-500 text-sm">Chưa có trận đấu trực tiếp nào. Admin hãy chọn trận để bắt đầu livestream.</p>
+                    </div>
+
+                    <div id="stream-live-state" class="hidden">
+                        <div class="flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-12 mb-6">
+                            <!-- Team 1 -->
+                            <div class="text-center flex-1 max-w-xs">
+                                <div class="w-16 h-16 rounded-full bg-valBg border-2 border-valCyan/50 mx-auto mb-3 flex items-center justify-center text-2xl text-valCyan">
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                </div>
+                                <h2 id="stream-team1-name" class="font-display font-black text-2xl lg:text-3xl text-white uppercase tracking-wider">ĐỘI 1</h2>
+                                <div class="flex items-center justify-center gap-2 mt-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                    <span class="text-[10px] text-gray-400 font-mono uppercase" id="stream-team1-pts">0 pts</span>
+                                </div>
+                            </div>
+
+                            <!-- Score -->
+                            <div class="flex items-center gap-4 lg:gap-6">
+                                <span id="stream-score1" class="text-7xl lg:text-8xl font-black font-mono text-valCyan drop-shadow-[0_0_20px_rgba(0,242,254,0.3)]">0</span>
+                                <span class="text-4xl lg:text-5xl font-black text-gray-600">:</span>
+                                <span id="stream-score2" class="text-7xl lg:text-8xl font-black font-mono text-valRed drop-shadow-[0_0_20px_rgba(255,70,85,0.3)]">0</span>
+                            </div>
+
+                            <!-- Team 2 -->
+                            <div class="text-center flex-1 max-w-xs">
+                                <div class="w-16 h-16 rounded-full bg-valBg border-2 border-valRed/50 mx-auto mb-3 flex items-center justify-center text-2xl text-valRed">
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                </div>
+                                <h2 id="stream-team2-name" class="font-display font-black text-2xl lg:text-3xl text-white uppercase tracking-wider">ĐỘI 2</h2>
+                                <div class="flex items-center justify-center gap-2 mt-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                    <span class="text-[10px] text-gray-400 font-mono uppercase" id="stream-team2-pts">0 pts</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Match Info Bar -->
+                        <div class="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-400">
+                            <span class="bg-valBg/80 border border-gray-800 px-3 py-1.5 rounded-full font-mono" id="stream-match-map">
+                                <i class="fa-solid fa-map mr-1"></i> Chưa chọn map
+                            </span>
+                            <span class="bg-valBg/80 border border-gray-800 px-3 py-1.5 rounded-full font-mono" id="stream-match-round">
+                                <i class="fa-solid fa-layer-group mr-1"></i> Vòng bảng
+                            </span>
+                            <span class="bg-valBg/80 border border-gray-800 px-3 py-1.5 rounded-full font-mono" id="stream-match-status">
+                                <i class="fa-solid fa-circle text-emerald-400 mr-1"></i> Đang thi đấu
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left: Stream Embed + Controls -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Embedded Stream -->
+                <div class="bg-valCard border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                        <i class="fa-solid fa-video text-valCyan text-xl"></i>
+                        <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Màn Hình Stream</h3>
+                        <span class="ml-auto bg-valCyan/10 text-valCyan px-3 py-1 rounded-full text-[10px] font-bold border border-valCyan/20">
+                            <i class="fa-solid fa-eye mr-1"></i> OBS Ready
+                        </span>
+                    </div>
+                    <div class="p-6">
+                        <div id="stream-embed-placeholder" class="bg-[#050608] rounded-xl aspect-video flex flex-col items-center justify-center border border-gray-800">
+                            <i class="fa-brands fa-youtube text-5xl text-gray-700 mb-3"></i>
+                            <p class="text-gray-500 text-sm">Nhúng link stream tại đây</p>
+                            <p class="text-[10px] text-gray-600 mt-1">YouTube, Twitch hoặc Discord</p>
+                        </div>
+                        <div id="stream-embed-active" class="hidden rounded-xl overflow-hidden aspect-video"></div>
+                        <div class="mt-3 flex gap-2">
+                            <input type="text" id="stream-embed-url" placeholder="https://twitch.tv/..." class="flex-1 bg-valBg border border-gray-800 rounded-lg px-4 py-2 text-xs text-white outline-none focus:border-valCyan">
+                            <button onclick="embedStreamUrl()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-4 py-2 rounded-lg text-xs font-bold hover:bg-valCyan/30 transition whitespace-nowrap">
+                                <i class="fa-solid fa-link mr-1"></i>Nhúng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KDA Panel -->
+                <div class="bg-valCard border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                        <i class="fa-solid fa-chart-simple text-yellow-400 text-xl"></i>
+                        <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">KDA Trực Tiếp</h3>
+                        <span class="ml-auto text-[10px] text-gray-500"><i class="fa-regular fa-clock mr-1"></i>Cập nhật real-time</span>
+                    </div>
+                    <div id="stream-kda-container" class="p-6">
+                        <div class="text-center text-gray-500 text-sm py-4">
+                            <i class="fa-solid fa-chart-line text-3xl mb-2"></i>
+                            <p>Bắt đầu trận đấu để theo dõi KDA</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Casters + Controls -->
+            <div class="space-y-6">
+                <!-- Casters Panel -->
+                <div class="bg-valCard border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                        <i class="fa-solid fa-microphone text-purple-400 text-xl"></i>
+                        <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">BLV / Caster</h3>
+                    </div>
+                    <div class="p-4">
+                        <div id="stream-casters-list" class="space-y-3 mb-4">
+                            <div class="text-center text-gray-500 text-xs py-3">
+                                <i class="fa-solid fa-user-plus text-xl mb-2"></i>
+                                <p>Chưa có BLV</p>
+                            </div>
+                        </div>
+                        <div id="stream-caster-admin" class="hidden border-t border-gray-800 pt-4 space-y-3">
+                            <h4 class="text-xs font-bold text-white uppercase">Quản Lý BLV</h4>
+                            <div class="flex gap-2">
+                                <input type="text" id="caster-name-input" placeholder="Tên BLV" class="flex-1 bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+                                <input type="text" id="caster-discord-input" placeholder="Discord ID" class="flex-1 bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+                            </div>
+                            <div class="flex gap-2">
+                                <select id="caster-role-select" class="flex-1 bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+                                    <option value="caster">BLV Chính</option>
+                                    <option value="analyst">Chuyên Gia Phân Tích</option>
+                                    <option value="host">MC Dẫn Chương Trình</option>
+                                    <option value="interviewer">Phóng Viên</option>
+                                </select>
+                                <button onclick="addCaster()" class="bg-purple-500/20 text-purple-400 border border-purple-400/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-purple-500/30 transition shrink-0">
+                                    <i class="fa-solid fa-plus"></i> Thêm
+                                </button>
+                            </div>
+                            <div id="caster-list-admin" class="space-y-2 max-h-48 overflow-y-auto"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Stream Controls -->
+                <div id="stream-admin-panel" class="hidden bg-valCard border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                        <i class="fa-solid fa-sliders text-emerald-400 text-xl"></i>
+                        <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Điều Khiển Stream</h3>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <!-- Select match to stream -->
+                        <div>
+                            <label class="text-[10px] text-gray-400 uppercase block mb-1.5">Chọn trận đấu để phát sóng</label>
+                            <select id="stream-match-select" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+                                <option value="">-- Chọn trận --</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="startStream()" class="flex-1 bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-4 py-2.5 rounded-lg text-xs font-bold hover:bg-emerald-500/30 transition">
+                                <i class="fa-solid fa-play mr-1"></i>Bắt Đầu Stream
+                            </button>
+                            <button onclick="stopStream()" class="flex-1 bg-red-500/20 text-red-400 border border-red-400/30 px-4 py-2.5 rounded-lg text-xs font-bold hover:bg-red-500/30 transition">
+                                <i class="fa-solid fa-stop mr-1"></i>Kết Thúc
+                            </button>
+                        </div>
+                        <!-- Live Score Control -->
+                        <div class="border-t border-gray-800 pt-4">
+                            <h4 class="text-xs font-bold text-white uppercase mb-3">Điều chỉnh tỉ số</h4>
+                            <div class="flex items-center gap-3">
+                                <div class="flex-1 text-center">
+                                    <label class="text-[10px] text-valCyan uppercase block mb-1" id="stream-ctrl-team1-label">Đội 1</label>
+                                    <input type="number" id="stream-ctrl-score1" min="0" value="0" class="w-full bg-valBg border border-valCyan/30 rounded-lg px-3 py-2 text-center text-white font-bold font-mono text-sm">
+                                </div>
+                                <span class="text-gray-500 font-bold mt-5">:</span>
+                                <div class="flex-1 text-center">
+                                    <label class="text-[10px] text-valRed uppercase block mb-1" id="stream-ctrl-team2-label">Đội 2</label>
+                                    <input type="number" id="stream-ctrl-score2" min="0" value="0" class="w-full bg-valBg border border-valRed/30 rounded-lg px-3 py-2 text-center text-white font-bold font-mono text-sm">
+                                </div>
+                            </div>
+                            <button onclick="updateStreamScore()" class="w-full mt-3 bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-valCyan/30 transition">
+                                <i class="fa-solid fa-arrow-up mr-1"></i>Cập Nhật Tỉ Số
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OBS Widget Info -->
+                <div class="bg-valCard border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                        <i class="fa-solid fa-code text-gray-400 text-xl"></i>
+                        <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">OBS Widget</h3>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-[10px] text-gray-500 mb-2">Dùng URL dưới đây trong OBS Browser Source để hiển thị scoreboard trực tiếp:</p>
+                        <div class="bg-valBg border border-gray-800 rounded-lg p-3 font-mono text-[10px] text-valCyan break-all select-all" id="obs-widget-url">Đang tải...</div>
+                        <button onclick="copyObsWidgetUrl()" class="mt-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold transition w-full">
+                            <i class="fa-solid fa-copy mr-1"></i>Sao Chép URL
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- OBS Scoreboard Widget (hidden, for embedding) -->
+<div id="obs-widget-overlay" class="hidden fixed inset-0 pointer-events-none z-[99999]">
+    <div class="w-full h-full flex flex-col justify-end p-6">
+        <div class="bg-gradient-to-r from-black/80 via-black/60 to-black/80 backdrop-blur-sm rounded-2xl p-6 border border-white/10 mx-auto max-w-4xl w-full">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-full bg-valBg border-2 border-valCyan/50 flex items-center justify-center text-valCyan"><i class="fa-solid fa-shield-halved text-lg"></i></div>
+                    <div>
+                        <h2 id="obs-team1" class="font-display font-black text-xl text-white uppercase">TEAM 1</h2>
+                        <span class="text-[9px] text-gray-400 font-mono">CYAN</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-5">
+                    <span id="obs-score1" class="text-5xl font-black font-mono text-valCyan">0</span>
+                    <span class="text-3xl font-black text-gray-600">:</span>
+                    <span id="obs-score2" class="text-5xl font-black font-mono text-valRed">0</span>
+                </div>
+                <div class="flex items-center gap-4 text-right">
+                    <div>
+                        <h2 id="obs-team2" class="font-display font-black text-xl text-white uppercase">TEAM 2</h2>
+                        <span class="text-[9px] text-gray-400 font-mono">RED</span>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-valBg border-2 border-valRed/50 flex items-center justify-center text-valRed"><i class="fa-solid fa-shield-halved text-lg"></i></div>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-white/10 flex items-center justify-between text-[10px]">
+                <span id="obs-map" class="text-gray-400 font-mono">MAP: TBD</span>
+                <span id="obs-casters" class="text-purple-400 font-mono">BLV: —</span>
+                <span id="obs-round" class="text-gray-400 font-mono">VÒNG: —</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <footer class="border-t border-gray-800/60 py-6 mt-12 bg-valBg/90 text-center text-xs text-gray-500">
+        <p>&copy; 2026 Giải Đấu Evan Cup.</p>
+        <button id="admin-trigger-btn" onclick="openAdminLoginModal()" class="mt-2 text-[10px] hover:text-valRed font-mono transition flex items-center gap-1 mx-auto justify-center"><i class="fa-solid fa-shield-halved"></i> Kích Hoạt Quyền Admin</button>
+    </footer>
+
+<section id="dashboard-tab" class="tab-content hidden">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl mb-6">
+            <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                <i class="fa-solid fa-id-card text-valCyan text-xl"></i>
+                <h3 class="font-display text-lg font-bold text-white uppercase">Tra Cứu Vận Động Viên</h3>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="dashboard-discord-id" placeholder="Nhập Discord ID của bạn..." class="flex-1 bg-valBg border border-gray-800 rounded-lg px-4 py-2.5 text-sm text-white focus:border-valCyan transition">
+                <button onclick="lookupPlayer()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-valCyan/30 transition">
+                    <i class="fa-solid fa-search mr-1"></i>Tra cứu
+                </button>
+            </div>
+        </div>
+        <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl mb-6">
+            <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                <i class="fa-solid fa-shield text-emerald-400 text-xl"></i>
+                <h3 class="font-display text-lg font-bold text-white uppercase">Tra Cứu Đội</h3>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="dashboard-team-name" placeholder="Tên đội..." class="flex-1 bg-valBg border border-gray-800 rounded-lg px-4 py-2.5 text-sm text-white focus:border-valCyan transition">
+                <button onclick="lookupTeam()" class="bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30 transition">
+                    <i class="fa-solid fa-search mr-1"></i>Tra cứu
+                </button>
+            </div>
+        </div>
+        <div id="dashboard-result" class="hidden">
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl mb-6">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                    <i class="fa-solid fa-user text-emerald-400 text-xl"></i>
+                    <h3 class="font-display text-lg font-bold text-white uppercase" id="dashboard-player-name">---</h3>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
+                        <p class="text-[10px] text-gray-400 uppercase">Elo</p>
+                        <p class="text-xl font-black text-yellow-400 font-mono" id="d-elo">-</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
+                        <p class="text-[10px] text-gray-400 uppercase">Rank</p>
+                        <p class="text-xl font-black text-white" id="d-rank">-</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
+                        <p class="text-[10px] text-gray-400 uppercase">Thắng</p>
+                        <p class="text-xl font-black text-emerald-400 font-mono" id="d-wins">-</p>
+                    </div>
+                    <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
+                        <p class="text-[10px] text-gray-400 uppercase">Thua</p>
+                        <p class="text-xl font-black text-red-400 font-mono" id="d-losses">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl mb-6">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                    <i class="fa-solid fa-calendar-check text-yellow-400 text-xl"></i>
+                    <h3 class="font-display text-lg font-bold text-white uppercase">Trận Sắp Tới</h3>
+                </div>
+                <div id="dashboard-upcoming" class="space-y-2">
+                    <p class="text-center text-gray-500 text-sm py-4">Nhập Discord ID để xem</p>
+                </div>
+            </div>
+            <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                    <i class="fa-solid fa-clock-rotate-left text-gray-400 text-xl"></i>
+                    <h3 class="font-display text-lg font-bold text-white uppercase">Lịch Sử Trận</h3>
+                </div>
+                <div id="dashboard-history" class="space-y-2">
+                    <p class="text-center text-gray-500 text-sm py-4">Nhập Discord ID để xem</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

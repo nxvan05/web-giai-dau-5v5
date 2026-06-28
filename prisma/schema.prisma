@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url = env("DATABASE_URL")
+}
+
+model Admin {
+  id        Int     @id @default(autoincrement())
+  username  String  @unique
+  password  String
+  role      String  @default("admin")
+}
+
+model Player {
+  id           String   @id @default(cuid())
+  displayName  String
+  discordId    String
+  riotId       String
+  rank         String
+  role         String
+  type         String
+  pts          Int      @default(0)
+  elo          Int      @default(1200)
+  wins         Int      @default(0)
+  losses       Int      @default(0)
+  mvps         Int      @default(0)
+  teamId       String?
+  createdAt    DateTime @default(now())
+}
+
+model Match {
+  id            String    @id @default(cuid())
+  group         String?
+  round         String    @default("group")
+  team1Name     String
+  team2Name     String
+  score1        Int       @default(0)
+  score2        Int       @default(0)
+  winner        String?
+  map           String?
+  scheduledAt   DateTime?
+  status        String    @default("pending")
+  mvpDiscordId  String?
+  mvpPlayerName String?
+  streamUrl     String?
+  createdAt     DateTime  @default(now())
+}
+
+model Team {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  shortName       String?
+  logo            String?
+  captainDiscordId String?
+  status          String   @default("pending")
+  rosterJson      String?
+  createdAt       DateTime @default(now())
+}
+
+model Penalty {
+  id         String   @id @default(cuid())
+  playerId   String
+  playerName String
+  reason     String
+  severity   String   @default("warning")
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  detail    String?
+  adminId   String?
+  createdAt DateTime @default(now())
+}
+
+model CheckIn {
+  id         String   @id @default(cuid())
+  matchId    String
+  playerId   String
+  discordId  String
+  playerName String
+  status     String   @default("confirmed")
+  createdAt  DateTime @default(now())
+}
+
+model MatchPlayerStat {
+  id              String   @id @default(cuid())
+  matchId         String
+  playerDiscordId String
+  playerName      String
+  teamNumber      Int
+  kills           Int      @default(0)
+  deaths          Int      @default(0)
+  assists         Int      @default(0)
+  mvp             Boolean  @default(false)
+  createdAt       DateTime @default(now())
+}
+
+model EloHistory {
+  id              String   @id @default(cuid())
+  playerDiscordId String
+  elo             Int
+  delta           Int      @default(0)
+  matchId         String?
+  reason          String?
+  createdAt       DateTime @default(now())
+}
+
+model Dispute {
+  id        String   @id @default(cuid())
+  matchId   String
+  teamName  String
+  reason    String
+  detail    String?
+  filedBy   String
+  status    String   @default("open")
+  resolution String?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model StreamSession {
+  id        String   @id @default(cuid())
+  matchId   String
+  status    String   @default("live")
+  casters   String?  @default("[]")
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+}
+
+model Caster {
+  id        String   @id @default(cuid())
+  name      String
+  discordId String?
+  role      String   @default("caster")
+  avatarUrl String?
+  createdAt DateTime @default(now())
+}
