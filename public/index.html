@@ -54,7 +54,7 @@
         .schedule-expanded #schedule-container { max-width: 100% !important; }
         .schedule-expanded .schedule-match-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; }
         .schedule-compact .schedule-match-list { display: flex; flex-direction: column; gap: 0.5rem; }
-        .tooltip-guide { position: relative; }
+        .tooltip-guide { position: relative; cursor: help; }
         .tooltip-guide:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1f2937; color: #e5e7eb; padding: 6px 10px; border-radius: 8px; font-size: 10px; white-space: nowrap; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 1px solid #374151; }
         @media (max-width: 640px) { .schedule-fullscreen .match-card-grid { grid-template-columns: 1fr; } }
     </style>
@@ -370,14 +370,14 @@
                             <div>
                                 <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">
                                     Tên Discord của bạn *
-                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Tên Discord hiển thị (vd: evan_cool) — tự động điền khi đăng nhập">?</span>
+                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Tên Discord hiển thị (vd: evan_cool) — tự động điền khi đăng nhập">?</span>
                                 </label>
                                 <input type="text" id="reg-discord" required placeholder="Ví dụ: evan_cool" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">
                                     Discord ID *
-                                    <span id="reg-discord-id-help" onclick="openDiscordIdGuide()" class="cursor-pointer inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition" title="Hướng dẫn lấy Discord ID">?</span>
+                                    <span id="reg-discord-id-help" onclick="openDiscordIdGuide()" class="cursor-pointer inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Hướng dẫn lấy Discord ID">?</span>
                                 </label>
                                 <input type="text" id="reg-discord-id" required placeholder="Ví dụ: 123456789012345678" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
                             </div>
@@ -388,14 +388,14 @@
                         <div>
                             <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">
                                 Riot ID (Tên#Tag) *
-                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="ID trong game Valorant (vd: Jett#LOL) — nhập chính xác để admin check thông tin">?</span>
+                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="ID trong game Valorant (vd: Jett#LOL) — nhập chính xác để admin check thông tin">?</span>
                             </label>
                             <input type="text" id="reg-riotid" required placeholder="Ví dụ: Jett#LOL" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">
                                 Mức Rank Cao Nhất *
-                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Rank cao nhất bạn từng đạt được — ảnh hưởng đến điểm và balance đội hình">?</span>
+                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Rank cao nhất bạn từng đạt được — ảnh hưởng đến điểm và balance đội hình">?</span>
                             </label>
                             <select id="reg-rank" onchange="updateFormPoints()" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
                                 <option value="Iron (Sắt)">Iron (Sắt) — 1đ</option>
@@ -414,7 +414,7 @@
                         <div>
                             <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">
                                 Hình Thức Tham Gia *
-                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Solo=đăng ký 1 mình; Duo=nhóm 2 (tối đa 9 điểm); Trio=nhóm 3 (tối đa 13 điểm) — team bạn sẽ chơi cùng nhau">?</span>
+                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Solo=đăng ký 1 mình; Duo=nhóm 2 (tối đa 9 điểm); Trio=nhóm 3 (tối đa 13 điểm) — team bạn sẽ chơi cùng nhau">?</span>
                             </label>
                             <select id="reg-type" onchange="toggleTeamInputs()" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
                                 <option value="Solo">Đăng ký Solo (Cá nhân lẻ)</option>
@@ -424,7 +424,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">Vị Trí Sở Trường *
-                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Vai trò bạn chơi tốt nhất — để admin xếp đội phù hợp: Duelist (tấn công), Initiator (hỗ trợ), Sentinel (phòng thủ), Controller (smoke), Flex (linh hoạt)">?</span>
+                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Vai trò bạn chơi tốt nhất — để admin xếp đội phù hợp: Duelist (tấn công), Initiator (hỗ trợ), Sentinel (phòng thủ), Controller (smoke), Flex (linh hoạt)">?</span>
                             </label>
                             <select id="reg-role" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
                                 <option value="Duelist">Duelist (Đối đầu / Mở đường)</option>
@@ -442,7 +442,7 @@
 
                     <div class="bg-valBg/90 p-4 rounded-xl flex items-center justify-between border border-gray-800">
                         <span class="text-gray-400 text-xs flex items-center gap-1">Tổng điểm đánh giá:
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Mỗi rank tương ứng với số điểm nhất định — tổng đội 5 người không được vượt quá 21 điểm để đảm bảo công bằng">?</span>
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Mỗi rank tương ứng với số điểm nhất định — tổng đội 5 người không được vượt quá 21 điểm để đảm bảo công bằng">?</span>
                             <span id="form-points-rules" class="text-gray-500 italic ml-1">(Điểm đơn lẻ)</span>
                         </span>
                         <span id="form-points-badge" class="text-2xl font-black text-emerald-400 font-mono bg-emerald-500/10 px-4 py-1.5 rounded-lg border border-emerald-500/30">4đ</span>
@@ -553,7 +553,7 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
                             <h4 class="text-xs font-bold text-yellow-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-bolt"></i> Nhập Nhanh (Auto-Parse)
-                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Dán nội dung ticket để tự động phân tích thông tin người chơi (Discord, Riot ID, Rank)">?</span>
+                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Dán nội dung ticket để tự động phân tích thông tin người chơi (Discord, Riot ID, Rank)">?</span>
                             </h4>
                             <div class="flex gap-2">
                                 <textarea id="quick-import-area" rows="2" placeholder="Dán nội dung chat ticket..." class="flex-1 bg-valBg border border-gray-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-valRed font-mono"></textarea>
@@ -564,7 +564,7 @@
                         </div>
                         <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
                             <h4 class="text-xs font-bold text-amber-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-bullhorn"></i> Gửi Thông Báo & Cảnh Báo
-                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Gửi notif đến một người (nhập Discord ID) hoặc tất cả người chơi (để trống)">?</span>
+                                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Gửi notif đến một người (nhập Discord ID) hoặc tất cả người chơi (để trống)">?</span>
                             </h4>
                             <div class="flex gap-2">
                                 <input type="text" id="admin-notify-player-id" placeholder="Discord ID (để trống = gửi tất cả)" class="flex-1 bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-400 transition">
@@ -581,7 +581,7 @@
                         <div class="bg-valBg/60 border border-gray-800 rounded-xl flex flex-col min-h-[320px]">
                             <div class="flex justify-between items-center p-4 pb-2 border-b border-gray-800">
                                 <h4 class="text-xs font-bold text-white uppercase flex items-center gap-1.5"><i class="fa-solid fa-list text-valRed"></i> Hàng Chờ Duyệt
-                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Danh sách người chơi đã đăng ký — xếp vào đội hoặc xóa">?</span>
+                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Danh sách người chơi đã đăng ký — xếp vào đội hoặc xóa">?</span>
                                 </h4>
                                 <span id="player-list-count" class="text-[10px] bg-valBg text-valRed px-2.5 py-0.5 rounded-full font-mono font-bold border border-valRed/20">0</span>
                             </div>
@@ -590,7 +590,7 @@
                         <div class="bg-valBg/60 border border-gray-800 rounded-xl flex flex-col min-h-[320px]">
                             <div class="flex justify-between items-center p-4 pb-2 border-b border-gray-800">
                                 <h4 class="text-xs font-bold text-valCyan uppercase flex items-center gap-1.5"><i class="fa-solid fa-users-gear"></i> Đội Chờ Duyệt
-                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition cursor-help" title="Đội đã đăng ký qua Discord — admin duyệt để đội đi vào hoạt động">?</span>
+                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="Đội đã đăng ký qua Discord — admin duyệt để đội đi vào hoạt động">?</span>
                                 </h4>
                             </div>
                             <div id="pending-teams-list" class="space-y-2 overflow-y-auto flex-grow p-4 pt-2 text-xs"></div>
@@ -1148,7 +1148,7 @@
                     <div class="mb-6">
                         <label class="text-[10px] text-gray-400 uppercase block mb-2 font-bold flex items-center gap-1">
                             Chọn trận để VETO
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 text-[9px] font-bold cursor-help" title="Chọn trận đấu sắp diễn ra để ban/pick map BO3 — đội trưởng mỗi team thay phiên cấm/chọn">?</span>
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 text-[9px] font-bold" title="Chọn trận đấu sắp diễn ra để ban/pick map BO3 — đội trưởng mỗi team thay phiên cấm/chọn">?</span>
                         </label>
                         <select id="veto-match-select" onchange="onSelectVetoMatch()" class="w-full bg-valBg border border-gray-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-purple-400 transition">
                             <option value="">-- Chọn trận --</option>
@@ -1192,7 +1192,7 @@
                                 <tr class="text-gray-400 uppercase border-b border-gray-800">
                                     <th class="py-3 px-3 text-center">#</th>
                                     <th class="py-3 px-3 text-left">Tên</th>
-                                    <th class="py-3 px-3 text-center"><span class="inline-flex items-center gap-1">Elo<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Điểm xếp hạng — cao hơn = mạnh hơn">?</span></span></th>
+                                    <th class="py-3 px-3 text-center"><span class="inline-flex items-center gap-1">Elo<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Điểm xếp hạng — cao hơn = mạnh hơn">?</span></span></th>
                                     <th class="py-3 px-3 text-center">Rank</th>
                                     <th class="py-3 px-3 text-center">Thắng</th>
                                     <th class="py-3 px-3 text-center">Thua</th>
@@ -1668,25 +1668,25 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
                             <p class="text-[10px] text-yellow-400 uppercase flex items-center justify-center gap-1">Elo
-                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Điểm xếp hạng — thay đổi dựa trên kết quả trận đấu">?</span>
+                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Điểm xếp hạng — thay đổi dựa trên kết quả trận đấu">?</span>
                             </p>
                             <p class="text-xl font-black text-yellow-400 font-mono" id="p-elo">-</p>
                         </div>
                         <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
                             <p class="text-[10px] text-gray-400 uppercase flex items-center justify-center gap-1">W / L
-                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Số trận thắng / thua trong giải">?</span>
+                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Số trận thắng / thua trong giải">?</span>
                             </p>
                             <p class="text-xl font-black font-mono"><span class="text-emerald-400" id="p-wins">-</span><span class="text-gray-600">/</span><span class="text-red-400" id="p-losses">-</span></p>
                         </div>
                         <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
                             <p class="text-[10px] text-gray-400 uppercase flex items-center justify-center gap-1">MVP
-                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Số lần được bình chọn là người chơi xuất sắc nhất trận">?</span>
+                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Số lần được bình chọn là người chơi xuất sắc nhất trận">?</span>
                             </p>
                             <p class="text-xl font-black text-yellow-400 font-mono" id="p-mvps">-</p>
                         </div>
                         <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
                             <p class="text-[10px] text-gray-400 uppercase flex items-center justify-center gap-1">KDA
-                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Tỷ lệ Kill / Death / Assist — chỉ số thể hiện phong độ">?</span>
+                                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Tỷ lệ Kill / Death / Assist — chỉ số thể hiện phong độ">?</span>
                             </p>
                             <p class="text-sm font-bold text-white font-mono" id="p-kda">- / - / -</p>
                         </div>
@@ -1780,7 +1780,7 @@
         </div>
         <div class="mb-4">
             <p class="text-[10px] text-gray-400 flex items-center gap-1">Đội trưởng
-                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Discord ID của đội trưởng — người có quyền quản lý đội">?</span>
+                <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Discord ID của đội trưởng — người có quyền quản lý đội">?</span>
             </p>
             <p class="text-sm font-bold text-white" id="team-modal-captain">---</p>
         </div>
@@ -1875,10 +1875,10 @@
         </div>
         <!-- Info row -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-center">
-            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">Thời gian<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Thời gian diễn ra trận đấu">?</span></p><p class="text-[10px] text-white font-bold" id="md-time">-</p></div>
-            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">Vòng<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Giai đoạn của giải (Vòng bảng / Bán kết / Chung kết)">?</span></p><p class="text-[10px] text-white font-bold" id="md-round">-</p></div>
-            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">MVP<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Người chơi xuất sắc nhất trận — dựa trên KDA và đóng góp">?</span></p><p class="text-[10px] text-yellow-400 font-bold" id="md-mvp">-</p></div>
-            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">VOD<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Link video ghi lại trận đấu (YouTube)">?</span></p><p class="text-[10px] text-valCyan font-bold" id="md-vod">-</p></div>
+            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">Thời gian<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Thời gian diễn ra trận đấu">?</span></p><p class="text-[10px] text-white font-bold" id="md-time">-</p></div>
+            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">Vòng<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Giai đoạn của giải (Vòng bảng / Bán kết / Chung kết)">?</span></p><p class="text-[10px] text-white font-bold" id="md-round">-</p></div>
+            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">MVP<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Người chơi xuất sắc nhất trận — dựa trên KDA và đóng góp">?</span></p><p class="text-[10px] text-yellow-400 font-bold" id="md-mvp">-</p></div>
+            <div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg"><p class="text-[9px] text-gray-400 flex items-center justify-center gap-1">VOD<span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold" title="Link video ghi lại trận đấu (YouTube)">?</span></p><p class="text-[10px] text-valCyan font-bold" id="md-vod">-</p></div>
         </div>
         <!-- KDA tables -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

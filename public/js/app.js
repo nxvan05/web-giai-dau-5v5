@@ -2748,3 +2748,15 @@
                 panel.classList.add('hidden');
             }
         });
+
+        // Tooltip guide click handler (for mobile / tap)
+        document.addEventListener('click', function(e) {
+            const tip = e.target.closest('.tooltip-guide');
+            if (!tip) return;
+            e.preventDefault();
+            tip.classList.toggle('active');
+            // auto-hide after 3s
+            if (tip.classList.contains('active')) {
+                setTimeout(() => tip.classList.remove('active'), 3000);
+            }
+        });
