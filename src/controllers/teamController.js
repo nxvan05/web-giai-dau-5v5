@@ -21,16 +21,24 @@ exports.updateTeams = async (req, res) => {
 
 exports.listAll = async (req, res, next) => {
   try {
-    const teams = await prisma.team.findMany({ orderBy: { createdAt: 'desc' } });
+    let authed = false;
+    try {
+      const jwt = require('jsonwebtoken');
+      const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+      if (token) { jwt.verify(token, process.env.JWT_SECRET); authed = true; }
+    } catch (_) {}
+    const where = authed ? {} : { status: 'approved' };
+    const teams = await prisma.team.findMany({ where, orderBy: { createdAt: 'desc' } });
     res.json(teams);
   } catch (e) { next(e); }
 };
 
 exports.createTeam = async (req, res, next) => {
   try {
-    const { name, captainDiscordId, rosterDiscordIds } = req.body;
-    if (!name || !captainDiscordId || !rosterDiscordIds || rosterDiscordIds.length !== 5) {
-      return res.status(400).json({ error: 'Cần tên đội + Discord ID đội trưởng + 5 thành viên' });
+    const { name, rosterDiscordIds } = req.body;
+    const captainDiscordId = req.discordUser.discordId;
+    if (!name || !rosterDiscordIds || rosterDiscordIds.length !== 5) {
+      return res.status(400).json({ error: 'Cần tên đội + 5 thành viên' });
     }
     const existing = await prisma.team.findUnique({ where: { name } });
     if (existing) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
@@ -62,6 +70,7 @@ exports.approveTeam = async (req, res, next) => {
 
     const io = getIO();
     if (io) io.emit('team:approved', { id: team.id, name: team.name });
+    try { const { createNotification } = require('../routes/notifications'); createNotification('team_approved', `Đội ${team.name} đã được duyệt`, { teamId: id, teamName: team.name }); } catch(e) {}
     res.json({ message: 'Đã duyệt đội ' + team.name });
   } catch (e) { next(e); }
 };

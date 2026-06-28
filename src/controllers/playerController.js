@@ -13,10 +13,20 @@ exports.getAll = async (req, res) => {
 exports.create = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
-  const { displayName, discordId, riotId, rank, role, type, pts } = req.body;
-  const player = await prisma.player.create({
-    data: { displayName, discordId, riotId, rank, role, type, pts: parseInt(pts) || 0 }
-  });
+  // admin auth: use body.discordId; discord auth: use JWT
+  const discordId = req.discordUser ? req.discordUser.discordId : req.body.discordId;
+  const { displayName, riotId, rank, role, type, pts } = req.body;
+
+  if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
+
+  const existing = await prisma.player.findFirst({ where: { discordId } });
+  if (existing) return res.status(409).json({ error: 'Discord ID này đã đăng ký rồi' });
+
+  const data = {
+    displayName, discordId, riotId, rank, role, type, pts: parseInt(pts) || 0
+  };
+
+  const player = await prisma.player.create({ data });
   notifyPlayerRegistered(player).catch(err => log.error('Caught error', { error: err.message }));
   logAction('player.create', displayName).catch(err => log.error('Caught error', { error: err.message }));
   const io = getIO();

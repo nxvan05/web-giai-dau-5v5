@@ -70,6 +70,7 @@ exports.updateResult = async (req, res) => {
 
   const io = getIO();
   if (io) io.emit('match:result', match);
+  try { const { createNotification } = require('../routes/notifications'); createNotification('match_result', `${match.team1Name} ${s1}-${s2} ${match.team2Name}`, { matchId: id, winner }); } catch(e) {}
 
   try {
     const team1Players = await prisma.player.findMany({ where: { teamId: existing.team1Name } });
@@ -183,11 +184,11 @@ exports.generateSchedule = async (req, res) => {
 exports.getLeaderboard = async (req, res) => {
   const players = await prisma.player.findMany({
     orderBy: [{ wins: 'desc' }, { elo: 'desc' }],
-    select: { id: true, displayName: true, elo: true, rank: true, wins: true, losses: true, mvps: true, discordId: true }
+    select: { id: true, displayName: true, elo: true, rank: true, wins: true, losses: true, mvps: true, discordId: true, teamId: true }
   });
   const result = players.map((p, i) => ({
     rank: i + 1, displayName: p.displayName, elo: p.elo,
-    rankName: p.rank, wins: p.wins, losses: p.losses, mvps: p.mvps, discordId: p.discordId
+    rankName: p.rank, wins: p.wins, losses: p.losses, mvps: p.mvps, discordId: p.discordId, teamId: p.teamId
   }));
   res.json(result);
 };

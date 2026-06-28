@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const discordAuth = require('../middleware/discordAuth');
 const prisma = require('../utils/prisma');
 const { getPagination, paginatedResponse } = require('../utils/pagination');
 const { body } = require('express-validator');
@@ -190,6 +191,86 @@ router.get('/player/:discordId', async (req, res) => {
     orderBy: { scheduledAt: 'asc' }
   });
   res.json(matches.map(m => ({ ...m, isTeam1: m.team1Name === (player.teamId || ''), result: m.winner ? (m.winner === (player.teamId || '') ? 'win' : 'loss') : 'pending' })));
+});
+
+router.get('/:id/detail', async (req, res, next) => {
+  try {
+    const match = await prisma.match.findUnique({ where: { id: req.params.id } });
+    if (!match) return res.status(404).json({ error: 'Match not found' });
+    const [team1Roster, team2Roster, playerStats] = await Promise.all([
+      prisma.player.findMany({ where: { teamId: match.team1Name } }),
+      prisma.player.findMany({ where: { teamId: match.team2Name } }),
+      prisma.matchPlayerStat.findMany({ where: { matchId: match.id } })
+    ]);
+    res.json({ match, team1Roster, team2Roster, playerStats });
+  } catch (e) { next(e); }
+});
+
+// === Captain Score Reporting ===
+router.post('/:id/report-score', discordAuth,
+  body('teamName').trim().notEmpty().withMessage('Tên đội không được để trống'),
+  body('score1').isInt({ min: 0 }).withMessage('Tỉ số không hợp lệ'),
+  body('score2').isInt({ min: 0 }).withMessage('Tỉ số không hợp lệ'),
+  validate,
+  async (req, res, next) => {
+  try {
+    const match = await prisma.match.findUnique({ where: { id: req.params.id } });
+    if (!match) return res.status(404).json({ error: 'Trận không tồn tại' });
+    if (match.team1Name !== req.body.teamName && match.team2Name !== req.body.teamName) {
+      return res.status(400).json({ error: 'Bạn không thuộc trận này' });
+    }
+    const existing = await prisma.scoreReport.findFirst({ where: { matchId: match.id, reportedByDiscordId: req.discordUser.discordId, status: 'pending' } });
+    if (existing) return res.status(400).json({ error: 'Bạn đã gửi báo cáo cho trận này rồi' });
+    const report = await prisma.scoreReport.create({
+      data: { matchId: match.id, reportedByDiscordId: req.discordUser.discordId, reportedByName: req.discordUser.discordUsername, teamName: req.body.teamName, score1: req.body.score1, score2: req.body.score2, map: req.body.map || null, screenshot: req.body.screenshot || null }
+    });
+    const { getIO } = require('../utils/socket');
+    const io = getIO();
+    if (io) io.emit('score:report', report);
+    try { const { createNotification } = require('./notifications'); createNotification('info', `Báo cáo kết quả từ ${req.discordUser.discordUsername} cho trận ${match.team1Name} vs ${match.team2Name}`, { matchId: match.id, reportId: report.id }); } catch(e) {}
+    res.status(201).json(report);
+  } catch (e) { next(e); }
+});
+
+router.get('/score-reports', auth, async (req, res, next) => {
+  try {
+    const reports = await prisma.scoreReport.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
+    const enriched = await Promise.all(reports.map(async r => {
+      const match = await prisma.match.findUnique({ where: { id: r.matchId } });
+      return { ...r, match };
+    }));
+    res.json(enriched);
+  } catch (e) { next(e); }
+});
+
+router.put('/score-reports/:id/approve', auth, async (req, res, next) => {
+  try {
+    const report = await prisma.scoreReport.findUnique({ where: { id: req.params.id } });
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+    if (report.status !== 'pending') return res.status(400).json({ error: 'Report already resolved' });
+    const match = await prisma.match.findUnique({ where: { id: report.matchId } });
+    if (!match) return res.status(404).json({ error: 'Match not found' });
+    let winner = report.score1 > report.score2 ? report.teamName : (report.score1 < report.score2 ? (match.team1Name === report.teamName ? match.team2Name : match.team1Name) : null);
+    await prisma.match.update({ where: { id: match.id }, data: { score1: report.score1, score2: report.score2, map: report.map || match.map, status: 'completed', winner } });
+    await prisma.scoreReport.update({ where: { id: report.id }, data: { status: 'approved', resolvedAt: new Date(), resolvedBy: req.user.username || 'admin' } });
+    const { getIO } = require('../utils/socket');
+    const io = getIO();
+    if (io) io.emit('match:result', match);
+    try { const { createNotification } = require('./notifications'); createNotification('match_result', `Kết quả đã được xác nhận: ${match.team1Name} ${report.score1}-${report.score2} ${match.team2Name}`, { matchId: match.id }); } catch(e) {}
+    res.json({ message: 'Đã duyệt báo cáo', report, match });
+  } catch (e) { next(e); }
+});
+
+router.put('/score-reports/:id/reject', auth, async (req, res, next) => {
+  try {
+    const report = await prisma.scoreReport.findUnique({ where: { id: req.params.id } });
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+    await prisma.scoreReport.update({ where: { id: report.id }, data: { status: 'rejected', resolvedAt: new Date(), resolvedBy: req.user.username || 'admin' } });
+    const { getIO } = require('../utils/socket');
+    const io = getIO();
+    if (io) io.emit('score:report-resolved', report);
+    res.json({ message: 'Đã từ chối báo cáo' });
+  } catch (e) { next(e); }
 });
 
 router.get('/h2h/:team1/:team2', async (req, res) => {

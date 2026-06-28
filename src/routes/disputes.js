@@ -6,7 +6,16 @@ const { getPagination, paginatedResponse } = require('../utils/pagination');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
 
-router.get('/', auth, async (req, res, next) => {
+function orAuth(req, res, next) {
+  const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+  const discord = req.cookies?.discord_token;
+  const jwt = require('jsonwebtoken');
+  try { if (token) { req.user = jwt.verify(token, process.env.JWT_SECRET); return next(); } } catch(_) {}
+  try { if (discord) { const d = jwt.verify(discord, process.env.JWT_SECRET); if (d.type === 'discord') { req.discordUser = d; return next(); } } } catch(_) {}
+  return res.status(401).json({ error: 'Vui lòng đăng nhập' });
+}
+
+router.get('/', orAuth, async (req, res, next) => {
   try {
     const { skip, limit, page } = getPagination(req);
     const [disputes, total] = await Promise.all([
@@ -18,6 +27,7 @@ router.get('/', auth, async (req, res, next) => {
 });
 
 router.post('/',
+  orAuth,
   body('matchId').trim().notEmpty().withMessage('matchId required'),
   body('teamName').trim().notEmpty().withMessage('teamName required'),
   body('filedBy').trim().notEmpty().withMessage('filedBy required'),
@@ -35,6 +45,7 @@ router.post('/',
     const { getIO } = require('../utils/socket');
     const io = getIO();
     if (io) io.emit('dispute:created', dispute);
+    try { const { createNotification } = require('./notifications'); createNotification('dispute_filed', `Khiếu nại từ ${teamName}: ${reason}`, { matchId, teamName }); } catch(e) {}
     res.json(dispute);
   } catch (e) { next(e); }
 });

@@ -19,6 +19,10 @@ exports.toggleCheckin = async (req, res, next) => {
     const { matchId } = req.params;
     const { discordId, playerName } = req.body;
     if (!discordId) return res.status(400).json({ error: 'discordId required' });
+    const authedDiscordId = req.user?.discordId || req.discordUser?.discordId;
+    if (req.user?.role !== 'admin' && authedDiscordId !== discordId) {
+      return res.status(403).json({ error: 'Chỉ được check-in cho chính mình' });
+    }
 
     const player = await prisma.player.findFirst({ where: { discordId } });
     if (!player) return res.status(404).json({ error: 'Không tìm thấy VĐV' });

@@ -25,6 +25,26 @@
           api('/api/auth/logout', { method: 'POST' }).catch(()=>{});
         }
 
+        function requireAdminAuth() {
+          if (apiToken) return true;
+          openAdminLoginModal();
+          showToast('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại!', 'error');
+          return false;
+        }
+
+        let loadingCount = 0;
+
+        function showLoading(msg) {
+          loadingCount++;
+          document.getElementById('loading-text').textContent = msg || 'Đang tải...';
+          document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+          loadingCount = Math.max(0, loadingCount - 1);
+          if (loadingCount === 0) document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
         async function loadPlayers() {
           try { apiPlayerCache = await api('/api/players'); } catch(e) { apiPlayerCache = []; }
           return apiPlayerCache;
@@ -87,9 +107,6 @@
                     apiToken = null;
                     localStorage.removeItem('evan_api_token');
                 }
-            } else if (localStorage.getItem('admin_verified_evan_cup') === 'true') {
-                document.getElementById('btn-admin-tab').classList.remove('hidden');
-                document.getElementById('admin-trigger-btn').innerHTML = `<i class="fa-solid fa-user-shield text-valCyan"></i> Admin Đã Đăng Nhập`;
             }
         };
 
@@ -278,12 +295,6 @@
 
         // Bảo mật 2 lớp chống tuyển thủ tự động gọi Tab Admin từ URL hoặc console
         function switchTab(id) {
-            if (id === 'admin-tab' && localStorage.getItem('admin_verified_evan_cup') !== 'true') {
-                openAdminLoginModal();
-                showToast("Vui lòng đăng nhập mã PIN điều phối để mở kho dữ liệu này!", "error");
-                return;
-            }
-
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById(id).classList.remove('hidden');
             
@@ -297,7 +308,6 @@
                 btn.classList.remove('text-gray-400'); 
                 btn.classList.add('bg-valRed', 'text-white', 'glow-red');
             }
-            if (id === 'dashboard-tab') loadCaptainDashboard();
         }
 
         // Quản lý Đăng Nhập & Đăng Xuất Admin an toàn
@@ -312,7 +322,6 @@
         
         async function checkAdminPassword() {
             const pin = document.getElementById('admin-password-input').value;
-            // Try backend JWT login
             try {
                 await apiLogin('evan', pin);
                 document.getElementById('btn-admin-tab').classList.remove('hidden');
@@ -323,27 +332,13 @@
                 await loadPlayers();
                 renderAdmin();
                 showToast("Đăng nhập quyền Admin thành công!", "success");
-                return;
             } catch(e) {
-                // Try backup PIN
-            }
-            if (pin === 'evan123') {
-                // Try backend with default admin password
-                try { await apiLogin('evan', 'evankk123'); } catch(e2) {}
-                localStorage.setItem('admin_verified_evan_cup', 'true');
-                document.getElementById('btn-admin-tab').classList.remove('hidden');
-                document.getElementById('admin-trigger-btn').innerHTML = `<i class="fa-solid fa-user-shield text-valCyan"></i> Admin Đã Đăng Nhập`;
-                closeAdminLoginModal();
-                switchTab('admin-tab');
-                showToast("Đăng nhập quyền Admin thành công!", "success");
-            } else {
                 showToast("Mã PIN bảo mật không chính xác!", "error");
             }
         }
 
         function logoutAdmin() {
             apiLogout();
-            localStorage.removeItem('admin_verified_evan_cup');
             document.getElementById('btn-admin-tab').classList.add('hidden');
             document.getElementById('admin-trigger-btn').innerHTML = `<i class="fa-solid fa-shield-halved"></i> Kích Hoạt Quyền Admin`;
             switchTab('guide-tab');
@@ -371,6 +366,7 @@
             if (tab === 'teams') renderAdmin();
             if (tab === 'veto') { if (vetoMatchId) loadVeto(vetoMatchId); }
             if (tab === 'config') loadWebhookUrl();
+            if (tab === 'reports') loadScoreReports();
             if (tab === 'discipline') { loadPenalties(); loadAuditLog(); loadDisputes(); }
             if (tab === 'data') { loadAdminStats(); loadFreeAgents(); }
         }
@@ -407,9 +403,15 @@
         }
 
         function openVetoForMatch(matchId, team1, team2) {
-            switchTab('guide-tab');
-            document.getElementById('veto-match-label').textContent = 'Trận: ' + team1 + ' vs ' + team2 + ' (' + matchId.slice(0,8) + '...)';
-            loadVeto(matchId);
+            switchTab('veto-tab');
+            const sel = document.getElementById('veto-match-select');
+            if (sel) {
+                sel.dataset.selected = matchId;
+                loadVetoMatches().then(() => {
+                    sel.value = matchId;
+                    onSelectVetoMatch();
+                });
+            }
         }
 
         function renderVetoUI() {
@@ -452,8 +454,8 @@
             vetoMapsState[mapName] = state;
             currentVetoPhase++;
             renderVetoUI();
-            if (vetoMatchId && apiToken) {
-                api('/api/veto/' + vetoMatchId, { method: 'PUT', body: { phase: currentVetoPhase, maps: vetoMapsState, log: [], active: true } }).catch(() => {});
+            if (vetoMatchId) {
+                api('/api/veto/' + vetoMatchId + '/action', { method: 'POST', body: { mapName } }).catch(() => {});
             }
         }
 
@@ -462,9 +464,164 @@
             MAP_LIST.forEach(m => vetoMapsState[m] = 'active');
             renderVetoUI();
             if (vetoMatchId && apiToken) {
-                api('/api/veto/' + vetoMatchId, { method: 'DELETE' }).catch(() => {});
+                api('/api/veto/' + vetoMatchId + '/reset', { method: 'POST' }).catch(() => {});
             }
             showToast('Đã làm mới VETO', 'success');
+        }
+
+        // === New Public VETO Tab ===
+        async function loadVetoMatches() {
+            const sel = document.getElementById('veto-match-select');
+            if (!sel) return;
+            sel.innerHTML = '<option value="">-- Đang tải trận đấu... --</option>';
+            try {
+                const matches = await api('/api/matches');
+                const upcoming = matches.filter(m => m.status !== 'completed' && m.team1Name && m.team2Name);
+                sel.innerHTML = '<option value="">-- Chọn trận --</option>';
+                let selectedVal = sel.dataset.selected || '';
+                upcoming.forEach(m => {
+                    const time = m.scheduledAt ? new Date(m.scheduledAt).toLocaleString('vi-VN') : 'TBD';
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.team1Name + ' vs ' + m.team2Name + ' (' + time + ')';
+                    sel.appendChild(opt);
+                });
+                if (selectedVal) sel.value = selectedVal;
+            } catch(e) {
+                sel.innerHTML = '<option value="">Lỗi tải danh sách</option>';
+            }
+        }
+
+        async function onSelectVetoMatch() {
+            const sel = document.getElementById('veto-match-select');
+            const matchId = sel.value;
+            const board = document.getElementById('veto-board');
+            const startBtn = document.getElementById('veto-start-btn');
+            if (!matchId) { board.classList.add('hidden'); return; }
+            board.classList.remove('hidden');
+            sel.dataset.selected = matchId;
+
+            // Join socket room
+            if (socket) socket.emit('veto:join', matchId);
+
+            // Load current veto state
+            try {
+                const veto = await api('/api/veto/' + matchId);
+                window.currentVetoData = veto;
+                if (veto.active || veto.phase > 0) {
+                    startBtn.classList.add('hidden');
+                    renderVetoBoard(veto);
+                } else {
+                    startBtn.classList.remove('hidden');
+                    renderVetoBoard({ phase: 0, maps: Object.fromEntries(MAP_LIST.map(m => [m, 'active'])), matchId, team1Name: '', team2Name: '', active: false });
+                }
+                // Update team labels
+                const match = await api('/api/matches');
+                const m = match.find(x => x.id === matchId);
+                if (m) {
+                    document.querySelector('#veto-team-labels .team1-label').textContent = '🔵 ' + m.team1Name;
+                    document.querySelector('#veto-team-labels .team2-label').textContent = '🔴 ' + m.team2Name;
+                    window._vetoTeam1Name = m.team1Name;
+                    window._vetoTeam2Name = m.team2Name;
+                }
+            } catch(e) {
+                startBtn.classList.add('hidden');
+                renderVetoBoard({ phase: 0, maps: Object.fromEntries(MAP_LIST.map(m => [m, 'active'])), matchId, team1Name: '', team2Name: '', active: false });
+            }
+        }
+
+        async function startVeto() {
+            const sel = document.getElementById('veto-match-select');
+            const matchId = sel.value;
+            if (!matchId) return;
+            try {
+                const veto = await api('/api/veto/' + matchId + '/init', { method: 'POST' });
+                window.currentVetoData = veto;
+                document.getElementById('veto-start-btn').classList.add('hidden');
+                renderVetoBoard(veto);
+                showToast('VETO bắt đầu!', 'success');
+            } catch(e) {
+                showToast('Lỗi: ' + e.message, 'error');
+            }
+        }
+
+        function renderVetoBoard(veto) {
+            const grid = document.getElementById('map-veto-grid');
+            if (!grid) return;
+            const phase = veto.phase || 0;
+            const phases = VETO_PHASES || [
+                { team: 1, action: 'ban', label: 'Cấm map' },
+                { team: 2, action: 'ban', label: 'Cấm map' },
+                { team: 1, action: 'pick', label: 'Chọn map (Ván 1)' },
+                { team: 2, action: 'pick', label: 'Chọn map (Ván 2)' },
+                { team: 1, action: 'ban', label: 'Cấm map' },
+                { team: 2, action: 'ban', label: 'Cấm map' },
+                { team: 0, action: 'decider', label: 'Ván 3 (Decider)' }
+            ];
+            const isComplete = phase >= phases.length;
+
+            // Status text
+            const st = document.getElementById('veto-status-text');
+            if (isComplete) {
+                st.innerHTML = '✅ <span class="text-emerald-400">VETO HOÀN TẤT!</span> Các map đã được chọn. Chúc 2 đội thi đấu tốt!';
+            } else {
+                const p = phases[phase];
+                const teamName = p.team === 1 ? (window._vetoTeam1Name || 'Team 1') : p.team === 2 ? (window._vetoTeam2Name || 'Team 2') : '';
+                const color = p.team === 1 ? 'text-blue-400' : p.team === 2 ? 'text-red-400' : 'text-yellow-400';
+                const bg = p.team === 1 ? 'bg-blue-500/20' : p.team === 2 ? 'bg-red-500/20' : 'bg-yellow-400/20';
+                const actionLabel = p.action === 'ban' ? 'CẤM' : p.action === 'pick' ? 'CHỌN' : 'DECIDER';
+                st.innerHTML = `Lượt <span class="text-purple-400 font-bold">${phase+1}/${phases.length}</span>: ${teamName} <span class="${bg} ${color} px-2 py-0.5 rounded font-bold">${actionLabel}</span> — <span class="text-gray-400">${p.label}</span>`;
+            }
+
+            // Map cards
+            grid.innerHTML = MAP_LIST.map(m => {
+                const state = (veto.maps && veto.maps[m]) || 'active';
+                let cls = 'map-card bg-valBg border rounded-xl overflow-hidden relative group ';
+                let overlay = '';
+                if (state === 'ban') { cls += 'map-banned'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-xmark text-4xl text-red-400 mb-1"></i><span class="text-[9px] bg-red-500/80 text-white px-2 py-0.5 rounded font-black">CẤM</span></div>'; }
+                else if (state === 'pick1') { cls += 'map-picked-cyan'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-check text-4xl text-white mb-1"></i><span class="text-[9px] bg-blue-500/80 text-white px-2 py-0.5 rounded font-black">CHỌN V1</span></div>'; }
+                else if (state === 'pick2') { cls += 'map-picked-red'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-check text-4xl text-white mb-1"></i><span class="text-[9px] bg-red-500/80 text-white px-2 py-0.5 rounded font-black">CHỌN V2</span></div>'; }
+                else if (state === 'decider') { cls += 'map-decider'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-star text-4xl text-yellow-400 mb-1"></i><span class="text-[9px] bg-yellow-400/80 text-black px-2 py-0.5 rounded font-black">VÁN 3</span></div>'; }
+                else { cls += 'cursor-pointer border-gray-800 hover:border-purple-400/50'; }
+
+                const gradients = {
+                    summit: 'linear-gradient(135deg, #1a0a2e 0%, #e91e63 100%)',
+                    breeze: 'linear-gradient(135deg, #0d7377 0%, #32e0c4 100%)',
+                    ascent: 'linear-gradient(135deg, #3e5151 0%, #decba4 100%)',
+                    haven: 'linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%)',
+                    split: 'linear-gradient(135deg, #232526 0%, #414345 100%)',
+                    sunset: 'linear-gradient(135deg, #f12711 0%, #f5af19 100%)',
+                    icebox: 'linear-gradient(135deg, #00b4db 0%, #0083b0 100%)',
+                    lotus: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'
+                };
+                const grad = gradients[m] || 'linear-gradient(135deg, #333, #666)';
+                const canClick = state === 'active' && !isComplete;
+                return `<div id="map-${m}" ${canClick ? `onclick="vetoAction('${m}')"` : ''} class="${cls}">
+                    <div class="aspect-[3/4] w-full relative" style="background: ${grad};">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                        ${overlay}
+                        <div class="absolute bottom-2 left-0 right-0 text-center z-10 pointer-events-none">
+                            <h4 class="font-display font-black text-xs text-white tracking-wider uppercase">${m}</h4>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function vetoAction(mapName) {
+            const sel = document.getElementById('veto-match-select');
+            const matchId = sel.value;
+            if (!matchId) return;
+            try {
+                const veto = await api('/api/veto/' + matchId + '/action', { method: 'POST', body: { mapName } });
+                window.currentVetoData = veto;
+                renderVetoBoard(veto);
+                if (!veto.active && veto.phase >= (VETO_PHASES || []).length) {
+                    showToast('VETO hoàn tất! Map đã được lưu.', 'success');
+                }
+            } catch(e) {
+                showToast('Lỗi: ' + e.message, 'error');
+            }
         }
 
         function openDiscordIdGuide() {
@@ -503,30 +660,88 @@
             </div>`;
         }
 
+        async function autoFillRegisterForm() {
+            const status = document.getElementById('register-discord-status');
+            const discordInput = document.getElementById('reg-discord');
+            const discordIdInput = document.getElementById('reg-discord-id');
+            const helpIcon = document.getElementById('reg-discord-id-help');
+            const submitBtn = document.getElementById('reg-submit-btn');
+            const editSection = document.getElementById('player-edit-section');
+
+            discordInput.disabled = false;
+            discordInput.required = true;
+            discordInput.classList.remove('opacity-60', 'cursor-not-allowed');
+            discordIdInput.disabled = false;
+            discordIdInput.required = true;
+            discordIdInput.classList.remove('opacity-60', 'cursor-not-allowed');
+            if (helpIcon) helpIcon.classList.remove('hidden');
+            status.classList.add('hidden');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class=\"fa-solid fa-paper-plane mr-2\"></i>Gửi Đơn Lên Phòng Duyệt';
+            if (editSection) editSection.classList.toggle('hidden', !apiToken);
+
+            if (!discordUser) return;
+
+            discordInput.value = discordUser.discordUsername;
+            discordIdInput.value = discordUser.discordId;
+            discordInput.disabled = true;
+            discordInput.required = false;
+            discordInput.classList.add('opacity-60', 'cursor-not-allowed');
+            discordIdInput.disabled = true;
+            discordIdInput.required = false;
+            discordIdInput.classList.add('opacity-60', 'cursor-not-allowed');
+            if (helpIcon) helpIcon.classList.add('hidden');
+
+            // show Discord avatar
+            const ava = document.getElementById('reg-discord-avatar');
+            if (ava && discordUser.discordAvatar) {
+                ava.src = 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png?size=64';
+                ava.classList.remove('hidden');
+            }
+
+            try {
+                const existing = await api('/api/players/lookup/' + discordUser.discordId);
+                status.className = 'mb-4 p-3 rounded-xl border text-sm flex items-center gap-2 bg-emerald-500/10 border-emerald-500/30 text-emerald-300';
+                status.innerHTML = '<i class=\"fa-solid fa-circle-check\"></i> Bạn đã đăng ký với tên <strong>' + existing.displayName + '</strong> (Rank: ' + existing.rank + ') <button onclick="switchTab(\'profile-tab\')" class="ml-2 text-[10px] bg-valCyan/20 text-valCyan border border-valCyan/30 px-2 py-0.5 rounded-lg font-bold hover:bg-valCyan/30 transition">Xem Hồ Sơ</button>';
+                status.classList.remove('hidden');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class=\"fa-solid fa-check mr-2\"></i>Đã Đăng Ký';
+            } catch (e) {
+                status.className = 'mb-4 p-3 rounded-xl border text-sm flex items-center gap-2 bg-valCyan/10 border-valCyan/30 text-valCyan';
+                status.innerHTML = '<i class=\"fa-solid fa-info-circle\"></i> Thông tin Discord đã được tự động điền';
+                status.classList.remove('hidden');
+            }
+        }
+
         async function handleRegistration(e) {
             e.preventDefault();
+            const discordName = discordUser ? discordUser.discordUsername : document.getElementById('reg-discord').value;
+            const discordId = discordUser ? discordUser.discordId : document.getElementById('reg-discord-id').value;
             const d = { 
-                discord: document.getElementById('reg-discord').value,
-                discordId: document.getElementById('reg-discord-id').value,
+                discord: discordName,
+                discordId: discordId,
                 id: document.getElementById('reg-riotid').value,
                 rank: document.getElementById('reg-rank').value,
                 role: document.getElementById('reg-role').value,
                 type: document.getElementById('reg-type').value,
                 pts: parseInt(document.getElementById('form-points-badge').innerText) || 3
             };
+            const body = {
+                displayName: d.discord,
+                riotId: d.id,
+                rank: d.rank,
+                role: d.role,
+                type: d.type,
+                pts: d.pts
+            };
+            // if not Discord-authed, send discordId manually (admin import)
+            if (!discordUser) body.discordId = d.discordId;
             try {
-                await api('/api/players', { method: 'POST', body: {
-                    displayName: d.discord,
-                    discordId: d.discordId,
-                    riotId: d.id,
-                    rank: d.rank,
-                    role: d.role,
-                    type: d.type,
-                    pts: d.pts
-                }});
+                await api('/api/players', { method: 'POST', body });
                 showToast('Đăng ký thành công!', 'success');
                 document.getElementById('registration-form').reset();
                 document.getElementById('form-points-badge').innerText = '3';
+                autoFillRegisterForm();
             } catch(e) {
                 showToast('Lỗi: ' + e.message, 'error');
             }
@@ -609,10 +824,12 @@
                 const rank = (p.rank || '').toLowerCase();
                 const role = (p.role || '').toLowerCase();
                 const type = (p.type || '').toLowerCase();
-                return name.includes(search) || riotId.includes(search) || rank.includes(search) || role.includes(search) || type.includes(search);
+                const teamName = (p.teamId || '').toLowerCase();
+                const discordId = (p.discordId || '').toLowerCase();
+                return name.includes(search) || riotId.includes(search) || rank.includes(search) || role.includes(search) || type.includes(search) || teamName.includes(search) || discordId.includes(search);
             }) : list;
             document.getElementById('player-list-count').innerText = filtered.length;
-            document.getElementById('player-count-badge').innerText = list.length;
+            document.getElementById('player-count-badge').innerText = list.length; if (document.getElementById('admin-player-count-badge')) document.getElementById('admin-player-count-badge').innerText = list.length;
             const c = document.getElementById('player-list-container'); c.innerHTML='';
             
             filtered.forEach((p, idx) => {
@@ -622,25 +839,39 @@
                 const role = p.role || 'N/A';
                 const type = p.type || 'Solo';
                 const riotId = p.riotId || 'N/A';
+                const teamName = p.teamId || '';
+                const avatarUrl = p.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + p.discordId + '/' + p.discordAvatar + '.png?size=32' : '';
+                const rankEmoji = {'Iron (Sắt)':'🥉','Bronze (Đồng)':'🥉','Silver (Bạc)':'🥈','Gold (Vàng)':'🥇','Platinum (Bạch Kim)':'💎','Diamond (Kim Cương)':'💎','Ascendant (Thượng Nhân)':'🔮','Immortal (Bất Tử)':'👑'}[rank] || '';
                 c.innerHTML += `<div class="bg-valBg/80 rounded-lg border border-gray-800 ${drafted?'opacity-50':''}">
                     <div class="flex justify-between items-center p-2.5 cursor-pointer" onclick="document.getElementById('player-detail-${idx}').classList.toggle('hidden')">
-                        <div class="flex items-center gap-2"><span class="bg-gray-800 text-[10px] px-1.5 rounded text-gray-300 font-bold">${p.pts}đ</span>
-                        <span class="text-xs font-bold text-white">${name}</span></div>
-                        ${!drafted ? `<div class="flex gap-1">
-                            <button onclick="event.stopPropagation();team1.push(players.find(x=>x.id===${p.id}));saveTournamentData();renderAdmin();" class="bg-valCyan/20 text-valCyan px-2 py-0.5 rounded text-[10px]">T1</button>
-                            <button onclick="event.stopPropagation();team2.push(players.find(x=>x.id===${p.id}));saveTournamentData();renderAdmin();" class="bg-valRed/20 text-valRed px-2 py-0.5 rounded text-[10px]">T2</button>
-                            <button onclick="event.stopPropagation();removePlayer(${p.id})" class="text-gray-500 hover:text-valRed px-1"><i class="fa-solid fa-trash"></i></button>
-                            <button onclick="event.stopPropagation();document.getElementById('player-detail-${idx}').classList.toggle('hidden')" class="text-gray-500 hover:text-valCyan px-1"><i class="fa-solid fa-chevron-down text-[10px]"></i></button>
-                        </div>` : `<span class="text-[9px] text-gray-500">Đã xếp <button onclick="removePlayer(${p.id})" class="text-gray-500 hover:text-valRed px-1"><i class="fa-solid fa-trash"></i></button></span>`}
+                        <div class="flex items-center gap-2">
+                            ${avatarUrl ? `<img src="${avatarUrl}" class="w-6 h-6 rounded-full border border-gray-700" onerror="this.style.display='none'">` : `<div class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] text-gray-600"><i class="fa-solid fa-user"></i></div>`}
+                            <span class="bg-gray-800 text-[10px] px-1.5 rounded text-gray-300 font-bold">${p.pts}đ</span>
+                            <span class="text-xs font-bold text-white">${name}</span>
+                            <span class="text-[10px] text-gray-500 hidden sm:inline">${rankEmoji} ${rank.split(' ')[0]}</span>
+                            <span class="text-[10px] text-valCyan hidden md:inline font-mono">${role.substring(0,3)}</span>
+                            <span class="text-[10px] text-gray-500 hidden md:inline">W${p.wins||0}/L${p.losses||0}</span>
+                            ${teamName ? `<span class="text-[9px] bg-valCyan/10 text-valCyan border border-valCyan/20 px-1.5 rounded-full">${teamName}</span>` : ''}
+                        </div>
+                        ${!drafted ? `<div class="flex gap-1 shrink-0">
+                            <span class="text-[10px] text-gray-600 hidden lg:inline font-mono">${p.elo||1200}elo</span>
+                            <button onclick="event.stopPropagation();team1.push(players.find(x=>x.id===${p.id}));saveTournamentData();renderAdmin();" class="bg-valCyan/20 text-valCyan px-2 py-0.5 rounded text-[10px] hover:bg-valCyan/30" title="Xếp vào Team 1">T1</button>
+                            <button onclick="event.stopPropagation();team2.push(players.find(x=>x.id===${p.id}));saveTournamentData();renderAdmin();" class="bg-valRed/20 text-valRed px-2 py-0.5 rounded text-[10px] hover:bg-valRed/30" title="Xếp vào Team 2">T2</button>
+                            <button onclick="event.stopPropagation();removePlayer(${p.id})" class="text-gray-500 hover:text-valRed px-1" title="Xóa người chơi"><i class="fa-solid fa-trash"></i></button>
+                            <button onclick="event.stopPropagation();document.getElementById('player-detail-${idx}').classList.toggle('hidden')" class="text-gray-500 hover:text-valCyan px-1" title="Chi tiết"><i class="fa-solid fa-chevron-down text-[10px]"></i></button>
+                        </div>` : `<span class="text-[9px] text-gray-500 flex items-center gap-1"><i class="fa-solid fa-check text-emerald-500"></i> Đã xếp <button onclick="removePlayer(${p.id})" class="text-gray-500 hover:text-valRed ml-1"><i class="fa-solid fa-trash"></i></button></span>`}
                     </div>
                     <div id="player-detail-${idx}" class="hidden px-2.5 pb-2.5 border-t border-gray-800/50 pt-2 space-y-1 text-[10px] text-gray-400">
-                        <div class="grid grid-cols-2 gap-1">
-                            <span><span class="text-gray-500">Discord:</span> <span class="text-white">${p.discordId || p.discord || 'N/A'}</span></span>
-                            <span><span class="text-gray-500">Riot ID:</span> <span class="text-white">${riotId}</span></span>
-                            <span><span class="text-gray-500">Rank:</span> <span class="text-yellow-400">${rank}</span></span>
-                            <span><span class="text-gray-500">Vai trò:</span> <span class="text-valCyan">${role}</span></span>
-                            <span><span class="text-gray-500">Loại:</span> <span class="text-white">${type}</span></span>
-                            <span><span class="text-gray-500">Elo:</span> <span class="text-white">${p.elo || 1200}</span></span>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Discord:</span> <span class="text-white" title="Discord ID">${p.discordId || 'N/A'}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Riot:</span> <span class="text-white">${riotId}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Rank:</span> <span class="text-yellow-400">${rank}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Role:</span> <span class="text-valCyan">${role}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Loại:</span> <span class="text-white">${type}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Elo:</span> <span class="text-white">${p.elo || 1200}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">W/L:</span> <span class="text-emerald-400">${p.wins||0}</span><span class="text-gray-500">/</span><span class="text-valRed">${p.losses||0}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">MVP:</span> <span class="text-yellow-400">${p.mvps||0}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Team:</span> <span class="text-valCyan">${teamName || 'Tự do'}</span></span>
                         </div>
                     </div>
                 </div>`;
@@ -733,7 +964,23 @@
 
         // === Schedule Tab ===
         function renderSchedule() {
-            if (apiToken) document.getElementById('admin-schedule-controls')?.classList.remove('hidden');
+            const controls = document.getElementById('admin-schedule-controls');
+            if (apiToken && controls) {
+                controls.innerHTML = `<div class="mb-6 bg-valBg/50 p-4 rounded-xl border border-gray-800">
+                    <h4 class="text-sm font-bold text-valCyan mb-3 uppercase">Tạo lịch tự động</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+                        <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Danh sách đội (cách xuống dòng)</label>
+                        <textarea id="sched-teams" rows="3" placeholder="Đội A" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white"></textarea></div>
+                        <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Ngày bắt đầu</label>
+                        <input type="date" id="sched-date" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white"></div>
+                        <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Phút/trận</label>
+                        <input type="number" id="sched-duration" value="60" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white"></div>
+                        <div><label class="text-[10px] text-gray-400 uppercase block mb-1">&nbsp;</label>
+                        <button onclick="generateSchedule()" class="w-full bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-valCyan/30 transition">
+                        <i class="fa-solid fa-gear mr-1"></i>Tạo lịch</button></div>
+                    </div>
+                </div>`;
+            }
             loadSchedule();
         }
 
@@ -748,8 +995,10 @@
 
         async function loadSchedule() {
             const container = document.getElementById('schedule-list');
+            showLoading('Đang tải lịch đấu...');
             try {
                 const matches = await api('/api/matches');
+                hideLoading();
                 if (matches.length === 0) {
                     container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-calendar-xmark text-3xl mb-2"></i><p>Chưa có trận đấu nào.</p></div>';
                     return;
@@ -771,9 +1020,9 @@
                             <div class="flex justify-between items-center">
                                 <div class="flex items-center gap-3">
                                     <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
-                                    <span class="font-bold text-white text-sm">${m.team1Name}</span>
+                                    <span class="font-bold text-white text-sm team-link cursor-pointer hover:text-valCyan" onclick="event.stopPropagation();openTeamDetail('${m.team1Name.replace(/'/g, "\\'")}')">${m.team1Name}</span>
                                     <span class="text-gray-500 text-xs">vs</span>
-                                    <span class="font-bold text-white text-sm">${m.team2Name}</span>
+                                    <span class="font-bold text-white text-sm team-link cursor-pointer hover:text-valCyan" onclick="event.stopPropagation();openTeamDetail('${m.team2Name.replace(/'/g, "\\'")}')">${m.team2Name}</span>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-[10px] text-gray-400 font-mono">${time}</span>
@@ -781,7 +1030,9 @@
                                         <i class="fa-solid fa-check"></i> Check-in
                                     </button>
                                     ${isAdmin ? `<button onclick="document.getElementById('${timeId}').classList.toggle('hidden')" class="text-[10px] text-valCyan border border-valCyan/30 px-2 py-1 rounded-lg hover:bg-valCyan/10 transition"><i class="fa-solid fa-clock"></i> Giờ</button>` : ''}
-                                    ${isAdmin ? `<button onclick="openResultModal('${m.id}','${m.team1Name}','${m.team2Name}')" class="text-[10px] text-emerald-400 border border-emerald-400/30 px-2 py-1 rounded-lg hover:bg-emerald-400/10 transition"><i class="fa-solid fa-pen"></i> Kết quả</button>` : ''}
+                                    <button onclick="openMatchDetail('${m.id}')" class="text-[10px] text-valCyan border border-valCyan/30 px-2 py-1 rounded-lg hover:bg-valCyan/10 transition"><i class="fa-solid fa-eye"></i> Chi tiết</button>
+                                    <button onclick="openScoreReport('${m.id}','${m.team1Name}','${m.team2Name}')" class="text-[10px] text-emerald-400 border border-emerald-400/30 px-2 py-1 rounded-lg hover:bg-emerald-400/10 transition"><i class="fa-solid fa-flag"></i> Báo KQ</button>
+                                    ${isAdmin ? `<button onclick="openResultModal('${m.id}','${m.team1Name}','${m.team2Name}')" class="text-[10px] text-emerald-400 border border-emerald-400/30 px-2 py-1 rounded-lg hover:bg-emerald-400/10 transition"><i class="fa-solid fa-pen"></i> Nhập KQ</button>` : ''}
                                     <button onclick="openVetoForMatch('${m.id}','${m.team1Name}','${m.team2Name}')" class="text-[10px] text-purple-400 border border-purple-400/30 px-2 py-1 rounded-lg hover:bg-purple-400/10 transition"><i class="fa-solid fa-map-location-dot"></i> VETO</button>
                                 </div>
                             </div>
@@ -814,13 +1065,14 @@
                         html += `<div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl">
                             <div class="flex justify-between items-center">
                                 <div class="flex items-center gap-2">
-                                    <span class="font-bold text-white text-sm">${m.team1Name}</span>
+                                    <span class="font-bold text-white text-sm team-link cursor-pointer hover:text-valCyan" onclick="event.stopPropagation();openTeamDetail('${m.team1Name.replace(/'/g, "\\'")}')">${m.team1Name}</span>
                                     <span class="font-black text-lg font-mono ${winner}">${m.score1} - ${m.score2}</span>
-                                    <span class="font-bold text-white text-sm">${m.team2Name}</span>
+                                    <span class="font-bold text-white text-sm team-link cursor-pointer hover:text-valCyan" onclick="event.stopPropagation();openTeamDetail('${m.team2Name.replace(/'/g, "\\'")}')">${m.team2Name}</span>
                                     ${mvpStr}
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-[10px] text-gray-500">${m.map || ''}</span>
+                                    <button onclick="openMatchDetail('${m.id}')" class="text-[10px] text-valCyan border border-valCyan/30 px-2 py-1 rounded-lg hover:bg-valCyan/10 transition"><i class="fa-solid fa-eye"></i></button>
                                     <button onclick="openDisputeModal('${m.id}','${m.team1Name}','${m.team2Name}')" class="text-[10px] text-orange-400 border border-orange-400/30 px-2 py-1 rounded-lg hover:bg-orange-400/10 transition"><i class="fa-solid fa-scale-balanced"></i></button>
                                     ${isAdmin ? `<button onclick="openMvpModal('${m.id}')" class="text-[10px] text-yellow-400 border border-yellow-400/30 px-2 py-1 rounded-lg hover:bg-yellow-400/10 transition"><i class="fa-solid fa-star"></i> MVP</button>` : ''}
                                     ${isAdmin ? `<button onclick="openResultModal('${m.id}','${m.team1Name}','${m.team2Name}','${m.score1}','${m.score2}','${m.map||''}')" class="text-[10px] text-yellow-400 border border-yellow-400/30 px-2 py-1 rounded-lg hover:bg-yellow-400/10 transition"><i class="fa-solid fa-pencil"></i> Sửa</button>` : ''}
@@ -831,8 +1083,10 @@
                     });
                 }
 
+                hideLoading();
                 container.innerHTML = html;
             } catch(e) {
+                hideLoading();
                 container.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">Lỗi tải lịch đấu</div>';
             }
         }
@@ -856,8 +1110,10 @@
 
         // === Leaderboard Tab ===
         async function loadLeaderboard() {
+            showLoading('Đang tải bảng xếp hạng...');
             try {
                 const players = await api('/api/matches/leaderboard');
+                hideLoading();
                 const tbody = document.getElementById('leaderboard-body');
                 tbody.innerHTML = players.map(p =>
                     `<tr class="border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50" onclick="openProfile(${JSON.stringify(p.discordId)})">
@@ -868,16 +1124,20 @@
                         <td class="py-2.5 px-3 text-center text-emerald-400 font-bold">${p.wins}</td>
                         <td class="py-2.5 px-3 text-center text-red-400">${p.losses}</td>
                         <td class="py-2.5 px-3 text-center text-yellow-400">${p.mvps}</td>
+                        <td class="py-2.5 px-3 text-center">${p.teamId ? `<span class="team-link text-[10px] text-valCyan cursor-pointer hover:text-white" onclick="event.stopPropagation();openTeamDetail('${p.teamId.replace(/'/g, "\\'")}')">${p.teamId}</span>` : '<span class="text-[10px] text-gray-600">-</span>'}</td>
                     </tr>`
                 ).join('');
             } catch(e) {
+                hideLoading();
                 document.getElementById('leaderboard-body').innerHTML = '<tr><td colspan="7" class="py-4 text-center text-gray-500">Chưa có dữ liệu</td></tr>';
             }
         }
 
         async function loadStandings() {
+            showLoading('Đang tải bảng xếp hạng đội...');
             try {
                 const standings = await api('/api/matches/standings');
+                hideLoading();
                 const container = document.getElementById('standings-container');
                 container.innerHTML = '';
                 for (const [group, teams] of Object.entries(standings)) {
@@ -888,7 +1148,7 @@
                             <tbody>`;
                     teams.forEach((t, i) => {
                         html += `<tr class="${i < 2 ? 'bg-emerald-500/5 border-l-2 border-emerald-400' : 'border-b border-gray-800/50'}">
-                            <td class="py-1.5 px-2 font-bold text-white">${t.name}${i < 2 ? ' ⭐' : ''}</td>
+                            <td class="py-1.5 px-2 font-bold text-white team-link cursor-pointer hover:text-valCyan" onclick="openTeamDetail('${t.name.replace(/'/g, "\\'")}')">${t.name}${i < 2 ? ' ⭐' : ''}</td>
                             <td class="py-1.5 px-2 text-center">${t.played}</td>
                             <td class="py-1.5 px-2 text-center text-emerald-400">${t.wins}</td>
                             <td class="py-1.5 px-2 text-center text-red-400">${t.losses}</td>
@@ -902,6 +1162,7 @@
                     container.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">Chưa có kết quả trận đấu</div>';
                 }
             } catch(e) {
+                hideLoading();
                 document.getElementById('standings-container').innerHTML = '<div class="text-center text-gray-500 text-sm py-4">Chưa có dữ liệu</div>';
             }
         }
@@ -912,27 +1173,54 @@
             const info = document.getElementById('captain-info');
             if (!discordUser) { section.classList.add('hidden'); return; }
             section.classList.remove('hidden');
+            const dashInput = document.getElementById('dashboard-discord-id');
+            if (dashInput && !dashInput.value) dashInput.value = discordUser.discordId;
+            showLoading('Đang tải thông tin cá nhân...');
             try {
                 const player = await api('/api/players/lookup/' + discordUser.discordId);
+                hideLoading();
                 if (!player) {
                     info.innerHTML = '<p class="text-gray-400">Bạn chưa đăng ký tham gia giải đấu.</p>';
                     return;
                 }
-                let html = `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                const avaUrl = discordUser.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png?size=64' : '';
+                let html = `<div class="flex items-center gap-4 mb-4 pb-3 border-b border-gray-800">
+                    ${avaUrl ? `<img src="${avaUrl}" class="w-10 h-10 rounded-full border-2 border-valCyan/50">` : ''}
+                    <div>
+                        <p class="text-sm font-bold text-white">${discordUser.discordUsername}</p>
+                        <p class="text-[10px] text-gray-500">${discordUser.discordId}</p>
+                    </div>
+                    <button onclick="switchTab('profile-tab')" class="ml-auto text-[10px] bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-1.5 rounded-lg font-bold hover:bg-valCyan/30 transition flex items-center gap-1">
+                        <i class="fa-solid fa-user"></i> Xem Hồ Sơ
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                     <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
-                        <p class="text-[10px] text-gray-400 uppercase">Tên</p>
+                        <p class="text-[10px] text-gray-400 uppercase flex items-center justify-center gap-1">
+                            Tên
+                            <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Tên hiển thị trong giải">?</span>
+                        </p>
                         <p class="text-sm font-bold text-white">${player.displayName}</p>
                     </div>
                     <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
-                        <p class="text-[10px] text-gray-400 uppercase">Đội</p>
+                        <p class="text-[10px] text-gray-400 uppercase flex items-center justify-center gap-1">
+                            Đội
+                            <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Đội bạn đang thi đấu">?</span>
+                        </p>
                         <p class="text-sm font-bold text-valCyan">${player.teamId || 'Chưa có'}</p>
                     </div>
                     <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
-                        <p class="text-[10px] text-gray-400 uppercase">Elo</p>
+                        <p class="text-[10px] text-gray-400 uppercase flex items-center justify-center gap-1">
+                            Elo
+                            <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Điểm xếp hạng — thay đổi sau mỗi trận">?</span>
+                        </p>
                         <p class="text-lg font-black text-yellow-400 font-mono">${player.elo}</p>
                     </div>
                     <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl text-center">
-                        <p class="text-[10px] text-gray-400 uppercase">W/L</p>
+                        <p class="text-[10px] text-gray-400 uppercase flex items-center justify-center gap-1">
+                            W/L
+                            <span class="inline-flex items-center justify-center w-3 h-3 rounded-full bg-gray-700 text-gray-400 text-[7px] font-bold cursor-help" title="Số trận thắng / thua">?</span>
+                        </p>
                         <p class="text-lg font-black font-mono"><span class="text-emerald-400">${player.wins}W</span> <span class="text-gray-500">-</span> <span class="text-red-400">${player.losses}L</span></p>
                     </div>
                 </div>`;
@@ -952,14 +1240,217 @@
                 }
                 info.innerHTML = html;
             } catch(e) {
+                hideLoading();
                 info.innerHTML = '<p class="text-gray-400">Không thể tải thông tin.</p>';
             }
         }
+        function populateRankSelect(selId, selected) {
+            const ranks = ["Iron (Sắt)","Bronze (Đồng)","Silver (Bạc)","Gold (Vàng)","Platinum (Bạch Kim)","Diamond (Kim Cương)","Ascendant (Thượng Nhân)","Immortal (Bất Tử)"];
+            const sel = document.getElementById(selId);
+            if (!sel) return;
+            sel.innerHTML = ranks.map(r => `<option value="${r}"${r===selected?' selected':''}>${r}</option>`).join('');
+        }
+        async function loadPlayerProfile() {
+            const container = document.getElementById('profile-container');
+            const notReg = document.getElementById('profile-not-registered');
+            const loaded = document.getElementById('profile-loaded');
+            notReg.classList.add('hidden'); loaded.classList.add('hidden');
+            if (!discordUser) return;
+            showLoading('Đang tải hồ sơ...');
+            try {
+                const data = await api('/api/players/me');
+                hideLoading();
+                loaded.classList.remove('hidden');
+                const p = data.player;
+                // Discord header
+                document.getElementById('profile-username').textContent = discordUser.discordUsername;
+                document.getElementById('profile-discord-id').textContent = 'Discord: ' + discordUser.discordId;
+                if (discordUser.discordAvatar) {
+                    document.getElementById('profile-avatar').src = 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png';
+                }
+                // Player info
+                document.getElementById('p-display-name').textContent = p.displayName || '-';
+                document.getElementById('p-riot-id').textContent = p.riotId || '-';
+                document.getElementById('p-rank').textContent = p.rank || '-';
+                document.getElementById('p-role').textContent = p.role || '-';
+                document.getElementById('p-type').textContent = p.type || '-';
+                const teamEl = document.getElementById('p-team');
+                if (p.teamId) { teamEl.innerHTML = `<span class="team-link cursor-pointer hover:text-white" onclick="openTeamDetail('${p.teamId.replace(/'/g, "\\'")}')">${p.teamId}</span>`; }
+                else { teamEl.textContent = 'Chưa có đội'; }
+                // Stats
+                document.getElementById('p-elo').textContent = p.elo;
+                document.getElementById('p-wins').textContent = p.wins;
+                document.getElementById('p-losses').textContent = p.losses;
+                document.getElementById('p-mvps').textContent = p.mvps || 0;
+                document.getElementById('p-kda').textContent = (data.kda.kills || 0) + ' / ' + (data.kda.deaths || 0) + ' / ' + (data.kda.assists || 0);
+                // Team section
+                const teamSection = document.getElementById('profile-team-section');
+                if (data.team) {
+                    teamSection.classList.remove('hidden');
+                    const t = data.team;
+                    document.getElementById('p-team-name').textContent = t.name;
+                    document.getElementById('p-team-status').textContent = t.status === 'approved' ? '✅ Đã duyệt' : '⏳ Chờ duyệt';
+                    const rosterEl = document.getElementById('p-team-roster');
+                    try {
+                        const roster = await api('/api/players/by-team/' + encodeURIComponent(t.name));
+                        rosterEl.innerHTML = roster.map(r => `<div class="bg-valBg/60 border border-gray-800 p-2 rounded-lg text-center"><p class="text-[10px] text-white font-bold truncate">${r.displayName}</p><p class="text-[9px] text-gray-500">${r.role || ''}</p></div>`).join('');
+                    } catch(e) { rosterEl.innerHTML = ''; }
+                    // Captain actions
+                    const cm = document.getElementById('profile-captain-actions');
+                    const mm = document.getElementById('profile-member-actions');
+                    if (cm) {
+                        const isCaptain = t.captainDiscordId === discordUser.discordId;
+                        cm.classList.toggle('hidden', !isCaptain);
+                        if (isCaptain) {
+                            cm.querySelector('.p-captain-kick').onclick = async function() {
+                                const pid = prompt('Nhập Discord ID thành viên muốn kick:');
+                                if (!pid) return;
+                                if (!confirm('Xác nhận kick thành viên này?')) return;
+                                try {
+                                    await api('/api/teams/' + encodeURIComponent(t.name) + '/players/' + pid, { method: 'DELETE' });
+                                    showToast('Đã xóa thành viên!', 'success');
+                                    loadPlayerProfile();
+                                } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+                            };
+                        }
+                    }
+                    if (mm) {
+                        const isCaptain = t.captainDiscordId === discordUser.discordId;
+                        mm.classList.toggle('hidden', isCaptain);
+                        if (!isCaptain) {
+                            mm.querySelector('.p-member-leave').onclick = async function() {
+                                if (!confirm('Xác nhận rời đội?')) return;
+                                try {
+                                    await api('/api/teams/' + encodeURIComponent(t.name) + '/leave', { method: 'POST' });
+                                    showToast('Đã rời đội!', 'success');
+                                    loadPlayerProfile();
+                                } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+                            };
+                        }
+                    }
+                } else {
+                    teamSection.classList.add('hidden');
+                }
+                // Match history
+                const historyEl = document.getElementById('profile-match-history');
+                if (data.matchHistory && data.matchHistory.length > 0) {
+                    historyEl.innerHTML = data.matchHistory.map(m => {
+                        const isWin = m.result === 'win';
+                        const isLoss = m.result === 'loss';
+                        const badge = isWin ? 'text-emerald-400 bg-emerald-500/10 border-emerald-400/30' : isLoss ? 'text-red-400 bg-red-500/10 border-red-400/30' : 'text-gray-400 bg-gray-500/10 border-gray-400/30';
+                        const label = isWin ? 'THẮNG' : isLoss ? 'THUA' : 'CHỜ';
+                        const time = m.scheduledAt ? new Date(m.scheduledAt).toLocaleString('vi-VN') : '';
+                        return `<div class="bg-valBg/40 border border-gray-800 p-3 rounded-xl flex items-center gap-3 text-xs">
+                            <span class="font-bold text-white">${m.team1Name}</span>
+                            <span class="font-mono font-black ${isWin ? 'text-emerald-400' : isLoss ? 'text-red-400' : 'text-gray-500'}">${m.score1} - ${m.score2}</span>
+                            <span class="font-bold text-white">${m.team2Name}</span>
+                            <span class="ml-auto ${badge} border px-2 py-0.5 rounded text-[9px] font-bold">${label}</span>
+                            ${time ? `<span class="text-[9px] text-gray-500">${time}</span>` : ''}
+                        </div>`;
+                    }).join('');
+                } else {
+                    historyEl.innerHTML = '<p class="text-center text-gray-500 text-sm py-4">Chưa có trận nào</p>';
+                }
+            } catch(e) {
+                hideLoading();
+                if (e.message.includes('chưa đăng ký')) {
+                    notReg.classList.remove('hidden');
+                } else {
+                    showToast('Lỗi tải hồ sơ: ' + e.message, 'error');
+                }
+            }
+        }
+        function openProfileEdit() {
+            document.getElementById('pe-display-name').value = document.getElementById('p-display-name').textContent;
+            document.getElementById('pe-riot-id').value = document.getElementById('p-riot-id').textContent;
+            populateRankSelect('pe-rank', document.getElementById('p-rank').textContent);
+            const currentRole = document.getElementById('p-role').textContent;
+            const roleSel = document.getElementById('pe-role');
+            if (currentRole && currentRole !== '-') roleSel.value = currentRole;
+            document.getElementById('profile-edit-modal').classList.remove('hidden');
+        }
+        function closeProfileEdit() {
+            document.getElementById('profile-edit-modal').classList.add('hidden');
+        }
+        async function saveProfileEdit() {
+            const body = {};
+            const displayName = document.getElementById('pe-display-name').value.trim();
+            const riotId = document.getElementById('pe-riot-id').value.trim();
+            const rank = document.getElementById('pe-rank').value;
+            const role = document.getElementById('pe-role').value;
+            if (displayName) body.displayName = displayName;
+            if (riotId) body.riotId = riotId;
+            if (rank) body.rank = rank;
+            if (role) body.role = role;
+            if (Object.keys(body).length === 0) return showToast('Không có thay đổi', 'info');
+            try {
+                await api('/api/players/me', { method: 'PUT', body });
+                showToast('Đã cập nhật hồ sơ!', 'success');
+                closeProfileEdit();
+                loadPlayerProfile();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+        // === Team Detail Modal ===
+        async function openTeamDetail(teamName) {
+            if (!teamName || teamName === 'Chưa có' || teamName === '-') return;
+            showLoading('Đang tải thông tin đội...');
+            try {
+                const data = await api('/api/teams/detail/' + encodeURIComponent(teamName));
+                hideLoading();
+                document.getElementById('team-modal-title').textContent = data.team.name;
+                document.getElementById('team-modal-status').textContent = data.team.status === 'approved' ? '✅ Đã duyệt' : '⏳ Chờ duyệt';
+                document.getElementById('team-modal-captain').textContent = data.captain ? data.captain.displayName + ' (' + data.team.captainDiscordId + ')' : (data.team.captainDiscordId || 'Không có');
+                document.getElementById('team-modal-wins').textContent = data.wins;
+                document.getElementById('team-modal-losses').textContent = data.losses;
+                const total = data.wins + data.losses;
+                document.getElementById('team-modal-wr').textContent = total > 0 ? Math.round(data.wins / total * 100) + '%' : '-';
+                const rosterEl = document.getElementById('team-modal-roster');
+                if (data.roster && data.roster.length > 0) {
+                    rosterEl.innerHTML = data.roster.map(r => `<div class="bg-valBg/60 border border-gray-800 p-2 rounded-lg text-center">
+                        <p class="text-[10px] text-white font-bold truncate" title="${r.displayName}">${r.displayName}</p>
+                        <p class="text-[9px] text-gray-500">${r.rank || ''}</p>
+                        <p class="text-[9px] text-gray-500">${r.role || ''}</p>
+                        <p class="text-[10px] text-yellow-400 font-mono font-bold">${r.elo}</p>
+                    </div>`).join('');
+                } else { rosterEl.innerHTML = '<p class="text-gray-500 text-xs col-span-5 text-center py-4">Chưa có thành viên</p>'; }
+                const matchEl = document.getElementById('team-modal-matches');
+                if (data.matchHistory && data.matchHistory.length > 0) {
+                    matchEl.innerHTML = data.matchHistory.slice(0, 10).map(m => {
+                        const isWin = m.result === 'win', isLoss = m.result === 'loss';
+                        const badge = isWin ? 'text-emerald-400' : isLoss ? 'text-red-400' : 'text-gray-500';
+                        const label = isWin ? 'THẮNG' : isLoss ? 'THUA' : 'CHỜ';
+                        const time = m.scheduledAt ? new Date(m.scheduledAt).toLocaleString('vi-VN') : '';
+                        return `<div class="bg-valBg/40 border border-gray-800 p-2 rounded-xl flex items-center gap-2 text-xs">
+                            <span class="font-bold text-white">${m.team1Name}</span>
+                            <span class="font-mono font-black ${isWin ? 'text-emerald-400' : isLoss ? 'text-red-400' : 'text-gray-500'}">${m.score1} - ${m.score2}</span>
+                            <span class="font-bold text-white">${m.team2Name}</span>
+                            <span class="ml-auto ${badge} border ${badge.replace('text','border')}/30 px-2 py-0.5 rounded text-[9px] font-bold">${label}</span>
+                            ${time ? `<span class="text-[9px] text-gray-500">${time}</span>` : ''}
+                        </div>`;
+                    }).join('');
+                } else { matchEl.innerHTML = '<p class="text-center text-gray-500 text-sm py-4">Chưa có trận nào</p>'; }
+                document.getElementById('team-modal').classList.remove('hidden');
+            } catch(e) {
+                hideLoading();
+                showToast('Lỗi tải thông tin đội: ' + e.message, 'error');
+            }
+        }
+        function closeTeamDetail() {
+            document.getElementById('team-modal').classList.add('hidden');
+        }
+        // Make team names clickable — call this after rendering any team name
+        function wireTeamClicks() {
+            document.querySelectorAll('.team-link').forEach(el => {
+                el.addEventListener('click', function(e) { e.stopPropagation(); openTeamDetail(this.dataset.team); });
+            });
+        }
         async function lookupPlayer() {
-            const discordId = document.getElementById('dashboard-discord-id').value.trim();
+            let discordId = document.getElementById('dashboard-discord-id').value.trim();
+            if (!discordId && discordUser) { discordId = discordUser.discordId; document.getElementById('dashboard-discord-id').value = discordId; }
             if (!discordId) return showToast('Nhập Discord ID!', 'error');
             const resultDiv = document.getElementById('dashboard-result');
             resultDiv.classList.add('hidden');
+            showLoading('Đang tra cứu...');
             try {
                 // Find player in leaderboard
                 const leaderboard = await api('/api/matches/leaderboard');
@@ -1024,8 +1515,10 @@
                 } else {
                     historyDiv.innerHTML = '<p class="text-center text-gray-500 text-sm py-4">Không có dữ liệu trận đấu</p>';
                 }
+                hideLoading();
                 resultDiv.classList.remove('hidden');
             } catch(e) {
+                hideLoading();
                 showToast('Lỗi: ' + e.message, 'error');
             }
         }
@@ -1036,8 +1529,10 @@
             if (!teamName) return showToast('Nhập tên đội!', 'error');
             const resultDiv = document.getElementById('dashboard-result');
             resultDiv.classList.add('hidden');
+            showLoading('Đang tra cứu đội...');
             try {
                 const matches = await api('/api/matches/team/' + encodeURIComponent(teamName));
+                hideLoading();
                 document.getElementById('dashboard-player-name').textContent = teamName + ' 🏆';
                 const stats = { wins: 0, losses: 0 };
                 matches.forEach(m => { if (m.result === 'win') stats.wins++; else if (m.result === 'loss') stats.losses++; });
@@ -1060,6 +1555,7 @@
                     : '<p class="text-center text-gray-500 text-sm py-4">Chưa có trận nào</p>';
                 resultDiv.classList.remove('hidden');
             } catch(e) {
+                hideLoading();
                 showToast('Lỗi: ' + e.message, 'error');
             }
         }
@@ -1091,6 +1587,16 @@
                     if (discordUser.discordAvatar) {
                         document.getElementById('discord-avatar').src = 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png';
                     }
+                    const profileBtn = document.getElementById('btn-profile-tab');
+                    if (profileBtn) profileBtn.classList.remove('hidden');
+                    // Auto-fill Discord ID in dashboard input
+                    const dashInput = document.getElementById('dashboard-discord-id');
+                    if (dashInput) { dashInput.value = discordUser.discordId; }
+                    // Check if registered
+                    try {
+                        const player = await api('/api/players/lookup/' + discordUser.discordId);
+                        if (player) showToast('Chào mừng ' + player.displayName + '!', 'success');
+                    } catch(e) {}
                 }
             } catch(e) {}
         }
@@ -1111,9 +1617,113 @@
             discordUser = null;
             document.getElementById('discord-login-btn').classList.remove('hidden');
             document.getElementById('discord-user-info').classList.add('hidden');
+            const profileBtn = document.getElementById('btn-profile-tab');
+            if (profileBtn) profileBtn.classList.add('hidden');
             showToast('Đã đăng xuất Discord', 'info');
         }
 
+        // === Match Detail Modal ===
+        async function openMatchDetail(matchId) {
+            showLoading('Đang tải thông tin trận...');
+            try {
+                const data = await api('/api/matches/' + matchId + '/detail');
+                hideLoading();
+                const m = data.match;
+                document.getElementById('md-title').textContent = m.team1Name + ' vs ' + m.team2Name;
+                document.getElementById('md-status').textContent = m.status === 'completed' ? '✅ Hoàn tất' : '⏳ Chờ đấu';
+                document.getElementById('md-team1').textContent = m.team1Name;
+                document.getElementById('md-team2').textContent = m.team2Name;
+                document.getElementById('md-team1').onclick = function(){ openTeamDetail(m.team1Name); };
+                document.getElementById('md-team2').onclick = function(){ openTeamDetail(m.team2Name); };
+                document.getElementById('md-score').textContent = m.score1 + ' - ' + m.score2;
+                document.getElementById('md-map').textContent = m.map || 'Chưa chọn map';
+                document.getElementById('md-time').textContent = m.scheduledAt ? new Date(m.scheduledAt).toLocaleString('vi-VN') : 'TBD';
+                const roundMap = { group: 'Bảng', semifinal: 'Bán Kết', final: 'Chung Kết' };
+                document.getElementById('md-round').textContent = roundMap[m.round] || m.round;
+                document.getElementById('md-mvp').textContent = m.mvpPlayerName || (m.mvpDiscordId ? m.mvpDiscordId : 'Chưa có');
+                document.getElementById('md-vod').innerHTML = m.streamUrl ? `<a href="${m.streamUrl}" target="_blank" class="hover:text-white">${m.streamUrl}</a>` : 'Không có';
+                // KDA
+                const team1Stats = data.playerStats.filter(s => s.teamNumber === 1);
+                const team2Stats = data.playerStats.filter(s => s.teamNumber === 2);
+                document.getElementById('md-t1-label').textContent = m.team1Name;
+                document.getElementById('md-t2-label').textContent = m.team2Name;
+                const renderKDA = (stats, elId) => {
+                    const el = document.getElementById(elId);
+                    if (stats.length === 0) { el.innerHTML = '<p class="text-gray-500 text-xs text-center py-4">Chưa có KDA</p>'; return; }
+                    el.innerHTML = stats.map(s => `<div class="bg-valBg/40 border border-gray-800 p-2 rounded-lg flex justify-between text-xs"><span class="text-white font-bold">${s.playerName}</span><span class="font-mono text-gray-300">${s.kills} / ${s.deaths} / ${s.assists}</span></div>`).join('');
+                };
+                renderKDA(team1Stats, 'md-t1-kda');
+                renderKDA(team2Stats, 'md-t2-kda');
+                document.getElementById('match-detail-modal').classList.remove('hidden');
+            } catch(e) {
+                hideLoading();
+                showToast('Lỗi tải thông tin trận: ' + e.message, 'error');
+            }
+        }
+        function closeMatchDetail() {
+            document.getElementById('match-detail-modal').classList.add('hidden');
+        }
+        // === Captain Score Reporting ===
+        function openScoreReport(matchId, team1Name, team2Name) {
+            if (!discordUser) return showToast('Đăng nhập Discord để báo kết quả!', 'error');
+            document.getElementById('sr-match-id').value = matchId;
+            const sel = document.getElementById('sr-team');
+            sel.innerHTML = '<option value="">-- Chọn đội của bạn --</option>';
+            [team1Name, team2Name].forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+            document.getElementById('sr-score1').value = '';
+            document.getElementById('sr-score2').value = '';
+            document.getElementById('sr-map').value = '';
+            document.getElementById('score-report-modal').classList.remove('hidden');
+        }
+        function closeScoreReport() {
+            document.getElementById('score-report-modal').classList.add('hidden');
+        }
+        async function submitScoreReport() {
+            const matchId = document.getElementById('sr-match-id').value;
+            const teamName = document.getElementById('sr-team').value;
+            const score1 = parseInt(document.getElementById('sr-score1').value);
+            const score2 = parseInt(document.getElementById('sr-score2').value);
+            const map = document.getElementById('sr-map').value;
+            if (!teamName) return showToast('Chọn đội của bạn!', 'error');
+            if (isNaN(score1) || isNaN(score2)) return showToast('Nhập tỉ số!', 'error');
+            try {
+                await api('/api/matches/' + matchId + '/report-score', { method: 'POST', body: { teamName, score1, score2, map: map || undefined } });
+                showToast('Đã gửi báo cáo, chờ admin xác nhận!', 'success');
+                closeScoreReport();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+        async function loadScoreReports() {
+            if (!requireAdminAuth()) return;
+            try {
+                const reports = await api('/api/matches/score-reports');
+                const container = document.getElementById('score-reports-list');
+                const pending = reports.filter(r => r.status === 'pending');
+                if (pending.length === 0) { container.innerHTML = '<p class="text-gray-500 text-center py-4">Không có báo cáo chờ duyệt</p>'; return; }
+                container.innerHTML = pending.map(r => {
+                    const m = r.match || {};
+                    return `<div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-xs font-bold text-white">${m.team1Name || '???'} vs ${m.team2Name || '???'}</p>
+                                <p class="text-[10px] text-gray-400">Báo bởi: ${r.reportedByName} (${r.teamName})</p>
+                                <p class="text-sm font-mono font-bold text-white mt-1">${r.score1} - ${r.score2} ${r.map ? '| ' + r.map : ''}</p>
+                                <p class="text-[9px] text-gray-500">${new Date(r.createdAt).toLocaleString('vi-VN')}</p>
+                            </div>
+                            <div class="flex gap-1 shrink-0">
+                                <button onclick="approveScoreReport('${r.id}')" class="bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-3 py-1 rounded-lg text-[10px] font-bold hover:bg-emerald-500/30 transition">Duyệt</button>
+                                <button onclick="rejectScoreReport('${r.id}')" class="bg-red-500/20 text-red-400 border border-red-400/30 px-3 py-1 rounded-lg text-[10px] font-bold hover:bg-red-500/30 transition">Từ chối</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) { document.getElementById('score-reports-list').innerHTML = '<p class="text-gray-500 text-center py-4">Lỗi tải</p>'; }
+        }
+        async function approveScoreReport(id) {
+            try { await api('/api/matches/score-reports/' + id + '/approve', { method: 'PUT' }); showToast('Đã duyệt báo cáo!', 'success'); loadScoreReports(); loadSchedule(); } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+        async function rejectScoreReport(id) {
+            try { await api('/api/matches/score-reports/' + id + '/reject', { method: 'PUT' }); showToast('Đã từ chối!', 'success'); loadScoreReports(); } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
         // === Check-in Functions ===
         async function toggleCheckin(matchId, discordId, playerName) {
             if (discordUser && !discordId) discordId = discordUser.discordId;
@@ -1229,12 +1839,13 @@
             document.getElementById('dispute-modal').classList.add('hidden');
         }
         async function submitDispute() {
+            if (!discordUser) return showToast('Đăng nhập Discord trước khi gửi khiếu nại!', 'error');
             const matchId = document.getElementById('dispute-match-id').value;
             const teamName = document.getElementById('dispute-team').value;
-            const filedBy = document.getElementById('dispute-filed-by').value.trim();
+            const filedBy = discordUser.discordId;
             const reason = document.getElementById('dispute-reason').value;
             const detail = document.getElementById('dispute-detail').value.trim();
-            if (!teamName || !filedBy) return showToast('Chọn đội và nhập Discord ID!', 'error');
+            if (!teamName) return showToast('Chọn đội!', 'error');
             try {
                 await api('/api/disputes', { method: 'POST', body: { matchId, teamName, reason, detail, filedBy } });
                 showToast('Đã gửi khiếu nại!', 'success');
@@ -1242,7 +1853,7 @@
             } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
         }
         async function loadDisputes() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return; } }
+            if (!requireAdminAuth()) return;
             try {
                 const list = await api('/api/disputes');
                 const pending = list.filter(d => d.status === 'open');
@@ -1272,7 +1883,7 @@
         // === Webhook Config ===
         // === Admin Stats ===
         async function loadAdminStats() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return; } }
+            if (!requireAdminAuth()) return;
             try {
                 const stats = await api('/api/matches/stats');
                 document.getElementById('stat-players').textContent = stats.players;
@@ -1283,9 +1894,11 @@
         }
 
         async function loadFreeAgents() {
+            showLoading('Đang tải danh sách tự do...');
+            const container = document.getElementById('free-agent-list');
             try {
                 const agents = await api('/api/players/free-agents');
-                const container = document.getElementById('free-agent-list');
+                hideLoading();
                 if (!agents || agents.length === 0) {
                     container.innerHTML = '<div class="text-gray-500 text-center py-2">Không có tuyển thủ tự do</div>';
                     return;
@@ -1296,7 +1909,10 @@
                         <span class="text-[10px] text-gray-400">${p.rank} • ${p.role} • ${p.elo} Elo</span>
                     </div>
                 `).join('');
-            } catch(e) {}
+            } catch(e) {
+                hideLoading();
+                container.innerHTML = '<div class="text-gray-500 text-center py-2">Lỗi tải dữ liệu</div>';
+            }
         }
 
         // === Export Functions ===
@@ -1340,7 +1956,7 @@
         }
 
         async function importCSV() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return showToast('Lỗi xác thực!', 'error'); } }
+            if (!requireAdminAuth()) return showToast('Lỗi xác thực!', 'error');
             const text = document.getElementById('csv-import-area').value.trim();
             if (!text) return showToast('Nhập dữ liệu CSV!', 'error');
             const lines = text.split('\n').map(l => l.trim()).filter(l => l);
@@ -1361,7 +1977,8 @@
 
         // === Player tự chỉnh sửa thông tin ===
         async function lookupPlayerForEdit() {
-            const discordId = document.getElementById('edit-discord-id').value.trim();
+            let discordId = document.getElementById('edit-discord-id').value.trim();
+            if (!discordId && discordUser) { discordId = discordUser.discordId; document.getElementById('edit-discord-id').value = discordId; }
             if (!discordId) return showToast('Nhập Discord ID!', 'error');
             try {
                 const p = await api('/api/players/lookup/' + encodeURIComponent(discordId));
@@ -1382,7 +1999,7 @@
             }
         }
         async function savePlayerEdit() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return showToast('Lỗi xác thực!', 'error'); } }
+            if (!requireAdminAuth()) return showToast('Lỗi xác thực!', 'error');
             const id = document.getElementById('edit-player-id').value;
             const data = {
                 displayName: document.getElementById('edit-display-name').value.trim(),
@@ -1402,7 +2019,7 @@
 
         // === Penalty Functions ===
         async function loadPenalties() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return; } }
+            if (!requireAdminAuth()) return;
             try {
                 const list = await api('/api/penalties');
                 const container = document.getElementById('penalty-list');
@@ -1431,7 +2048,7 @@
 
         // === Team Management (Admin) ===
         async function loadPendingTeams() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return; } }
+            if (!requireAdminAuth()) return;
             try {
                 const teams = await api('/api/teams/all');
                 const container = document.getElementById('pending-teams-list');
@@ -1472,7 +2089,7 @@
         }
 
         async function sendPlayerNotification() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return showToast('Lỗi xác thực!', 'error'); } }
+            if (!requireAdminAuth()) return showToast('Lỗi xác thực!', 'error');
             const playerId = document.getElementById('admin-notify-player-id').value.trim();
             const message = document.getElementById('admin-notify-message').value.trim();
             if (!message) return showToast('Nhập nội dung thông báo!', 'error');
@@ -1503,7 +2120,7 @@
 
         // === Audit Log ===
         async function loadAuditLog() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return; } }
+            if (!requireAdminAuth()) return;
             try {
                 const logs = await api('/api/audit');
                 const container = document.getElementById('audit-log-list');
@@ -1516,7 +2133,7 @@
         }
 
         async function saveWebhookUrl() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) {} }
+            if (!requireAdminAuth()) return;
             const url = document.getElementById('webhook-url-input').value.trim();
             if (!url) return showToast('Nhập webhook URL!', 'error');
             try {
@@ -1527,7 +2144,7 @@
             }
         }
         async function loadWebhookUrl() {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return; } }
+            if (!requireAdminAuth()) return;
             try {
                 const settings = await api('/api/settings');
                 const wh = settings.find(s => s.key === 'webhook_url');
@@ -1539,10 +2156,12 @@
         async function loadBracket() {
             const container = document.getElementById('bracket-container');
             const btn = document.getElementById('btn-generate-playoff');
+            const isAdmin = !!apiToken;
+            showLoading('Đang tải playoff...');
             try {
                 const bracket = await api('/api/bracket');
                 if (bracket.semis?.length > 0 || bracket.final) {
-                    btn.classList.add('hidden');
+                    if (isAdmin) btn.classList.add('hidden');
                     const matches = await api('/api/matches');
                     const playoffMatches = matches.filter(m => m.group === 'playoff' || m.round === 'semifinal' || m.round === 'final');
                     let html = '<div class="flex flex-col md:flex-row gap-4 items-center justify-center">';
@@ -1555,7 +2174,7 @@
                             <div class="text-sm font-bold text-white">${s.team1Name || 'TBD'}</div>
                             <div class="text-lg font-black font-mono ${wClass}">${score}</div>
                             <div class="text-sm font-bold text-white">${s.team2Name || 'TBD'}</div>
-                            ${m ? `<button onclick="openResultModal('${m.id}','${m.team1Name}','${m.team2Name}','${m.score1}','${m.score2}','${m.map||''}')" class="mt-2 text-[10px] text-yellow-400 border border-yellow-400/30 px-2 py-0.5 rounded hover:bg-yellow-400/10 transition"><i class="fa-solid fa-pen"></i> KQ</button>` : ''}
+                            ${m && isAdmin ? `<button onclick="openResultModal('${m.id}','${m.team1Name}','${m.team2Name}','${m.score1}','${m.score2}','${m.map||''}')" class="mt-2 text-[10px] text-yellow-400 border border-yellow-400/30 px-2 py-0.5 rounded hover:bg-yellow-400/10 transition"><i class="fa-solid fa-pen"></i> KQ</button>` : ''}
                         </div>`;
                     });
                     html += '</div>';
@@ -1570,20 +2189,24 @@
                                 <div class="text-2xl font-black font-mono ${fClass}">${fScore}</div>
                                 <div class="text-sm font-bold text-white">${final.team2Name || 'TBD'}</div>
                                 ${final.winner ? `<div class="mt-2 text-sm font-black text-yellow-400">🏆 Vô địch: ${final.winner}</div>` : ''}
-                                <button onclick="openResultModal('${final.id}','${final.team1Name}','${final.team2Name}','${final.score1}','${final.score2}','${final.map||''}')" class="mt-2 text-[10px] text-yellow-400 border border-yellow-400/30 px-2 py-0.5 rounded hover:bg-yellow-400/10 transition"><i class="fa-solid fa-pen"></i> Nhập KQ</button>
+                                ${isAdmin ? `<button onclick="openResultModal('${final.id}','${final.team1Name}','${final.team2Name}','${final.score1}','${final.score2}','${final.map||''}')" class="mt-2 text-[10px] text-yellow-400 border border-yellow-400/30 px-2 py-0.5 rounded hover:bg-yellow-400/10 transition"><i class="fa-solid fa-pen"></i> Nhập KQ</button>` : ''}
                             </div>
                         </div>`;
                     }
                     container.innerHTML = html;
+                    hideLoading();
                 } else {
-                    btn.classList.remove('hidden');
-                    container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-diagram-project text-3xl mb-2"></i><p>Chưa có playoff. Dùng nút "Tạo Playoff" để bắt đầu.</p></div>';
+                    if (isAdmin) btn.classList.remove('hidden');
+                    hideLoading();
+                    container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-diagram-project text-3xl mb-2"></i><p>Chưa có playoff.</p></div>';
                 }
             } catch(e) {
+                hideLoading();
                 container.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">Lỗi tải dữ liệu playoff</div>';
             }
         }
         async function generatePlayoff() {
+            if (!requireAdminAuth()) return;
             try {
                 await api('/api/bracket/generate', { method: 'POST' });
                 showToast('Đã tạo playoff!', 'success');
@@ -1593,9 +2216,8 @@
             }
         }
 
-        // Override switchTab to load data on tab switch
         async function disbandTeam(id) {
-            if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) { return; } }
+            if (!requireAdminAuth()) return;
             if (!confirm('Xác nhận giải tán đội này?')) return;
             try {
                 await api('/api/teams/' + id, { method: 'DELETE' });
@@ -1604,23 +2226,11 @@
             } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
         }
 
-        const _origSwitchTab = switchTab;
-        switchTab = async function(id) {
-            _origSwitchTab(id);
-            if (id === 'schedule-tab') { renderSchedule(); }
-            if (id === 'leaderboard-tab') { loadLeaderboard(); loadStandings(); }
-            if (id === 'bracket-tab') { loadBracket(); }
-            if (id === 'admin-tab' && (apiToken || localStorage.getItem('admin_verified_evan_cup') === 'true')) {
-                if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) {} }
-                loadPendingTeams(); renderAdmin();
-                switchAdminSubTab(currentAdminSubTab);
-            }
-        };
         // === WebSocket real-time ===
         let socket = null;
         if (typeof io !== 'undefined') {
             socket = io(window.location.origin, { transports: ['websocket', 'polling'] });
-            socket.on('connect', () => console.log('Socket.IO connected'));
+            // socket connected
             socket.on('match:result', (data) => {
                 showToast('Kết quả: ' + (data.winner || 'Hòa') + ' (' + (data.score1 || 0) + '-' + (data.score2 || 0) + ')', 'success');
                 renderSchedule(); loadLeaderboard();
@@ -1652,6 +2262,24 @@
             socket.on('penalty:added', (data) => {
                 showToast('Vi phạm: ' + (data.playerName || data.playerId), 'warning');
                 if (apiToken && document.getElementById('admin-tab')?.classList.contains('hidden') === false) loadPenalties();
+            });
+            socket.on('score:report', (data) => {
+                showToast('Có báo cáo kết quả mới!', 'info');
+                if (apiToken && document.getElementById('admin-tab')?.classList.contains('hidden') === false) loadScoreReports();
+            });
+            socket.on('veto:update', (data) => {
+                if (data.matchId === document.getElementById('veto-match-select')?.value) {
+                    window.currentVetoData = data;
+                    renderVetoBoard(data);
+                }
+            });
+            socket.on('veto:reset', (data) => {
+                if (data.matchId === document.getElementById('veto-match-select')?.value) {
+                    window.currentVetoData = { phase: 0, maps: Object.fromEntries(MAP_LIST.map(m => [m, 'active'])), matchId: data.matchId, active: false };
+                    renderVetoBoard(window.currentVetoData);
+                    document.getElementById('veto-start-btn').classList.remove('hidden');
+                    showToast('VETO đã được reset', 'info');
+                }
             });
         }
 
@@ -1688,8 +2316,10 @@
         let streamCasters = [];
 
         async function loadStreamBooth() {
+            showLoading('Đang tải stream...');
             try {
                 const data = await api('/api/stream/current');
+                hideLoading();
                 if (data.live && data.match) {
                     currentStreamSession = data.session;
                     currentStreamMatch = data.match;
@@ -1706,6 +2336,7 @@
                 }
                 updateObsWidgetUrl();
             } catch(e) {
+                hideLoading();
                 console.error('Stream load error:', e);
             }
         }
@@ -1940,11 +2571,15 @@
             } catch(e) {}
         }
 
-        // Override switchTab to also load Stream Booth
-        const __origSwitchTab2 = switchTab;
+        // Override switchTab to load data on tab switch
+        const _baseSwitchTab = switchTab;
         switchTab = async function(id) {
-            __origSwitchTab2(id);
+            _baseSwitchTab(id);
+            if (id === 'register-tab') { autoFillRegisterForm(); }
+            if (id === 'dashboard-tab') { loadCaptainDashboard(); }
+            if (id === 'profile-tab') { loadPlayerProfile(); }
             if (id === 'schedule-tab') { renderSchedule(); }
+            if (id === 'veto-tab') { loadVetoMatches(); }
             if (id === 'leaderboard-tab') { loadLeaderboard(); loadStandings(); }
             if (id === 'bracket-tab') { loadBracket(); }
             if (id === 'stream-tab') {
@@ -1954,9 +2589,10 @@
                     socket.emit('stream:join', currentStreamSession.id);
                 }
             }
-            if (id === 'admin-tab' && (apiToken || localStorage.getItem('admin_verified_evan_cup') === 'true')) {
-                if (!apiToken) { try { await apiLogin('evan', 'evankk123'); } catch(e) {} }
+            if (id === 'admin-tab') {
+                if (!apiToken) { openAdminLoginModal(); return; }
                 loadPendingTeams(); renderAdmin();
+                loadScoreReports();
                 switchAdminSubTab(currentAdminSubTab);
             }
         };
@@ -2008,6 +2644,7 @@
                 window.history.replaceState({}, document.title, window.location.pathname);
                 checkDiscordAuth();
                 showToast('Đã đăng nhập Discord thành công!', 'success');
+                setTimeout(() => { if (discordUser) switchTab('profile-tab'); }, 500);
             }
             if (params.get('obs-widget') === '1') {
                 document.getElementById('obs-widget-overlay').classList.remove('hidden');
@@ -2032,4 +2669,82 @@
             if (input) input.addEventListener('keydown', function(e) { if (e.key === 'Enter') lookupPlayer(); });
             const teamInput = document.getElementById('dashboard-team-name');
             if (teamInput) teamInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') lookupTeam(); });
+            initNotifications();
+        });
+
+        // === Notification Center ===
+        let notifCount = 0;
+        let notifs = [];
+        async function initNotifications() {
+            const bell = document.getElementById('notif-bell');
+            if (!bell) return;
+            bell.classList.remove('hidden');
+            try {
+                notifs = await api('/api/notify/in-app');
+                notifCount = 0;
+                if (notifs.length > 0) {
+                    const lastSeen = localStorage.getItem('evan_last_notif_id') || '';
+                    const idx = notifs.findIndex(n => n.id === lastSeen);
+                    notifCount = idx < 0 ? notifs.length : idx;
+                }
+                updateNotifBadge();
+            } catch(e) {}
+            // Listen for real-time notifications
+            if (socket) {
+                socket.on('notification:created', (notif) => {
+                    notifs.unshift(notif);
+                    notifCount++;
+                    updateNotifBadge();
+                    if (!document.getElementById('notif-panel').classList.contains('hidden')) {
+                        renderNotifList();
+                    }
+                });
+            }
+        }
+        function updateNotifBadge() {
+            const badge = document.getElementById('notif-badge');
+            if (!badge) return;
+            if (notifCount > 0) {
+                badge.classList.remove('hidden');
+                badge.textContent = notifCount > 99 ? '99+' : notifCount;
+            } else { badge.classList.add('hidden'); }
+        }
+        function toggleNotifPanel() {
+            const panel = document.getElementById('notif-panel');
+            if (panel.classList.contains('hidden')) {
+                renderNotifList();
+                panel.classList.remove('hidden');
+            } else { panel.classList.add('hidden'); }
+        }
+        function renderNotifList() {
+            const list = document.getElementById('notif-list');
+            if (notifs.length === 0) { list.innerHTML = '<p class="text-center text-gray-500 text-xs py-4">Chưa có thông báo</p>'; return; }
+            const icons = { match_result: '🏆', team_approved: '✅', dispute_filed: '⚠️', dispute_resolved: '⚖️', match_created: '📅', stream_started: '🔴', info: '📢' };
+            list.innerHTML = notifs.map(n => {
+                const icon = icons[n.type] || '📢';
+                const time = new Date(n.createdAt).toLocaleString('vi-VN');
+                return `<div class="flex gap-2 p-2 hover:bg-valBg/40 rounded-lg text-xs border-b border-gray-800/50 last:border-0">
+                    <span class="shrink-0">${icon}</span>
+                    <div class="min-w-0">
+                        <p class="text-white font-medium truncate">${n.message}</p>
+                        <p class="text-[9px] text-gray-500">${time}</p>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        function markAllNotifRead() {
+            if (notifs.length > 0) {
+                localStorage.setItem('evan_last_notif_id', notifs[0].id);
+                notifCount = 0;
+                updateNotifBadge();
+            }
+            document.getElementById('notif-panel').classList.add('hidden');
+        }
+        // Click outside to close
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('notif-panel');
+            const bell = document.getElementById('notif-bell');
+            if (panel && !panel.classList.contains('hidden') && !e.target.closest('#notif-bell') && !e.target.closest('#notif-panel')) {
+                panel.classList.add('hidden');
+            }
         });

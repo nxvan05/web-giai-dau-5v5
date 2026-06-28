@@ -12,7 +12,6 @@ function initSocket(httpServer, corsOrigin) {
 
     socket.on('stream:join', (streamId) => {
       socket.join('stream-' + streamId);
-      console.log('Socket joined stream:', streamId);
     });
 
     socket.on('stream:leave', (streamId) => {
@@ -21,6 +20,15 @@ function initSocket(httpServer, corsOrigin) {
 
     socket.on('stream:update-score', (data) => {
       io.to('stream-' + data.streamId).emit('stream:score', data);
+    });
+
+    // VETO rooms
+    socket.on('veto:join', (matchId) => {
+      socket.join('veto-' + matchId);
+    });
+
+    socket.on('veto:leave', (matchId) => {
+      socket.leave('veto-' + matchId);
     });
 
     socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
