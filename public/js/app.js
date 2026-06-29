@@ -796,7 +796,7 @@
         async function lookupRiotIdForRegister() {
             const riotId = document.getElementById('reg-riotid').value.trim();
             const resultEl = document.getElementById('reg-riot-lookup-result');
-            if (!riotId) return showToast('Nhập Riot ID trước!', 'error');
+            if (!riotId) { resultEl.classList.add('hidden'); return; }
             resultEl.className = 'mt-1 text-[10px] p-2 bg-valBg/50 border border-gray-800 rounded-lg';
             resultEl.innerHTML = '<span class="text-gray-400"><i class="fa-solid fa-spinner animate-spin mr-1"></i>Đang tra cứu...</span>';
             resultEl.classList.remove('hidden');
@@ -817,13 +817,14 @@
         document.addEventListener('DOMContentLoaded', function() {
             const riotInput = document.getElementById('reg-riotid');
             if (riotInput) {
+                let debounceTimer;
                 riotInput.addEventListener('input', function() {
-                    const rankSelect = document.getElementById('reg-rank');
-                    if (rankSelect.disabled) {
-                        rankSelect.disabled = false;
-                        rankSelect.classList.remove('opacity-60', 'cursor-not-allowed');
-                        document.getElementById('reg-riot-lookup-result').classList.add('hidden');
-                    }
+                    clearTimeout(debounceTimer);
+                    const el = document.getElementById('reg-riot-lookup-result');
+                    el.classList.add('hidden');
+                    debounceTimer = setTimeout(() => {
+                        if (riotInput.value.trim().includes('#')) lookupRiotIdForRegister();
+                    }, 800);
                 });
             }
         });
