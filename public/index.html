@@ -537,7 +537,13 @@
                                 Riot ID (Tên#Tag) *
                                 <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-700 text-gray-300 hover:bg-valCyan hover:text-white text-[10px] font-bold transition tooltip-guide" data-tip="ID trong game Valorant (vd: Jett#LOL) — nhập chính xác để admin check thông tin">?</span>
                             </label>
-                            <input type="text" id="reg-riotid" required placeholder="Ví dụ: Jett#LOL" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                            <div class="flex gap-2">
+                                <input type="text" id="reg-riotid" required placeholder="Ví dụ: Jett#LOL" class="flex-1 min-w-0 bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
+                                <button type="button" onclick="lookupRiotIdForRegister()" class="shrink-0 bg-yellow-400/20 text-yellow-400 border border-yellow-400/30 px-3 rounded-xl text-[10px] font-bold hover:bg-yellow-400/30 transition whitespace-nowrap" title="Tra cứu rank từ Riot Games">
+                                    <i class="fa-solid fa-search"></i>
+                                </button>
+                            </div>
+                            <div id="reg-riot-lookup-result" class="mt-1 text-[10px] hidden"></div>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-300 uppercase mb-1 flex items-center gap-1">
@@ -1029,6 +1035,25 @@
                         <button onclick="exportCSV('matches')" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-calendar mr-1"></i>Matches CSV</button>
                         <button onclick="exportCSV('leaderboard')" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-ranking-star mr-1"></i>BXH CSV</button>
                         <button onclick="exportJSON()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-code mr-1"></i>All JSON</button>
+                    </div>
+
+                    <!-- Tra cứu Riot ID -->
+                    <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
+                        <h4 class="text-xs font-bold text-yellow-400 mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-magnifying-glass"></i> Tra cứu Riot ID (Valorant API)</h4>
+                        <p class="text-[10px] text-gray-500 mb-2">Nhập Riot ID để tự động lấy Rank từ Riot Games</p>
+                        <div class="flex flex-wrap gap-2">
+                            <input id="riot-lookup-input" type="text" placeholder="ShadowStrike#VN" class="flex-1 min-w-[200px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white font-mono outline-none focus:border-yellow-400 transition">
+                            <select id="riot-lookup-region" class="bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-yellow-400 transition">
+                                <option value="ap">Asia Pacific (AP)</option>
+                                <option value="na">North America (NA)</option>
+                                <option value="eu">Europe (EU)</option>
+                                <option value="kr">Korea (KR)</option>
+                            </select>
+                            <button onclick="lookupRiotId()" class="bg-yellow-400/20 text-yellow-400 border border-yellow-400/30 px-4 py-2 rounded-lg text-xs font-bold hover:bg-yellow-400/30 transition">
+                                <i class="fa-solid fa-search mr-1"></i>Tra cứu
+                            </button>
+                        </div>
+                        <div id="riot-lookup-result" class="mt-3 hidden"></div>
                     </div>
 
                     <!-- Import CSV -->

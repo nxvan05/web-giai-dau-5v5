@@ -76,6 +76,7 @@ app.use('/api/disputes', require('./routes/disputes'));
 app.use('/api/stream', require('./routes/stream'));
 app.use('/api/discord', require('./routes/discord'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/valorant', require('./routes/valorant'));
 
 app.get('/api/health', async (req, res) => {
   try {

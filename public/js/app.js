@@ -793,6 +793,40 @@
             }
         }
 
+        async function lookupRiotIdForRegister() {
+            const riotId = document.getElementById('reg-riotid').value.trim();
+            const resultEl = document.getElementById('reg-riot-lookup-result');
+            if (!riotId) return showToast('Nhập Riot ID trước!', 'error');
+            resultEl.className = 'mt-1 text-[10px] p-2 bg-valBg/50 border border-gray-800 rounded-lg';
+            resultEl.innerHTML = '<span class="text-gray-400"><i class="fa-solid fa-spinner animate-spin mr-1"></i>Đang tra cứu...</span>';
+            resultEl.classList.remove('hidden');
+            try {
+                const data = await api('/api/valorant/lookup', { method: 'POST', body: { riotId, region: 'ap' } });
+                const rankSelect = document.getElementById('reg-rank');
+                for (let opt of rankSelect.options) {
+                    if (opt.value === data.rank) { rankSelect.value = data.rank; break; }
+                }
+                rankSelect.disabled = true;
+                rankSelect.classList.add('opacity-60', 'cursor-not-allowed');
+                updateFormPoints();
+                resultEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-lock mr-1"></i>${data.rank} · ${data.elo} elo · ${data.pts}đ <span class="text-gray-500">(tự động từ Riot)</span></span>`;
+            } catch(e) {
+                resultEl.innerHTML = `<span class="text-valRed"><i class="fa-solid fa-circle-exclamation mr-1"></i>${e.message}</span>`;
+            }
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const riotInput = document.getElementById('reg-riotid');
+            if (riotInput) {
+                riotInput.addEventListener('input', function() {
+                    const rankSelect = document.getElementById('reg-rank');
+                    if (rankSelect.disabled) {
+                        rankSelect.disabled = false;
+                        rankSelect.classList.remove('opacity-60', 'cursor-not-allowed');
+                        document.getElementById('reg-riot-lookup-result').classList.add('hidden');
+                    }
+                });
+            }
+        });
         async function handleRegistration(e) {
             e.preventDefault();
             const discordName = discordUser ? discordUser.discordUsername : document.getElementById('reg-discord').value;
@@ -2071,6 +2105,56 @@ async function generateSchedule() {
             } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
         }
 
+        async function lookupRiotId() {
+            const riotId = document.getElementById('riot-lookup-input').value.trim();
+            const region = document.getElementById('riot-lookup-region').value;
+            const resultEl = document.getElementById('riot-lookup-result');
+            if (!riotId) return showToast('Nhập Riot ID!', 'error');
+            resultEl.className = 'mt-3 p-3 bg-valBg/80 border border-gray-800 rounded-lg';
+            resultEl.innerHTML = '<div class="text-gray-400 text-xs"><i class="fa-solid fa-spinner animate-spin mr-1"></i>Đang tra cứu...</div>';
+            resultEl.classList.remove('hidden');
+            try {
+                const data = await api('/api/valorant/lookup', { method: 'POST', body: { riotId, region } });
+                resultEl.innerHTML = `<div class="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                        <span class="text-white font-bold text-sm">${data.riotId}</span>
+                        <span class="ml-2 text-xs text-yellow-400">${data.rank}</span>
+                        <span class="ml-2 text-xs text-gray-500">${data.elo} elo</span>
+                        <span class="ml-2 text-xs text-gray-500">${data.pts}đ</span>
+                    </div>
+                    <button onclick="addLookedUpPlayer()" class="bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-3 py-1 rounded text-[10px] font-bold hover:bg-emerald-500/30 transition">
+                        <i class="fa-solid fa-plus mr-1"></i>Thêm vào giải
+                    </button>
+                </div>`;
+                resultEl.dataset.riotId = data.riotId;
+                resultEl.dataset.rank = data.rank;
+                resultEl.dataset.pts = data.pts;
+                resultEl.dataset.elo = data.elo;
+            } catch(e) {
+                resultEl.innerHTML = `<div class="text-valRed text-xs"><i class="fa-solid fa-circle-exclamation mr-1"></i>${e.message}</div>`;
+            }
+        }
+        async function addLookedUpPlayer() {
+            const el = document.getElementById('riot-lookup-result');
+            const riotId = el.dataset.riotId;
+            if (!riotId) return showToast('Chưa có dữ liệu!', 'error');
+            const name = riotId.split('#')[0];
+            const discordId = 'manual_' + Date.now();
+            const playerData = {
+                displayName: name,
+                discordId: discordId,
+                riotId: riotId,
+                rank: el.dataset.rank || 'Silver (Bạc)',
+                role: 'Flex',
+                type: 'Solo',
+                pts: parseInt(el.dataset.pts) || 3
+            };
+            const textarea = document.getElementById('csv-import-area');
+            const existing = textarea.value.trim();
+            const line = `${playerData.displayName},${playerData.discordId},${playerData.riotId},${playerData.rank},${playerData.role},${playerData.type},${playerData.pts}`;
+            textarea.value = existing ? existing + '\n' + line : line;
+            showToast('Đã thêm vào danh sách Import!', 'success');
+        }
         async function importCSV() {
             if (!requireAdminAuth()) return showToast('Lỗi xác thực!', 'error');
             const text = document.getElementById('csv-import-area').value.trim();
