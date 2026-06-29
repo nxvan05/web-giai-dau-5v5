@@ -13,6 +13,7 @@
     "register-commands": "node -e \"require('./src/discord/bot').registerCommands()\"",
     "postinstall": "chmod +x node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x 2>/dev/null; chmod +x node_modules/@prisma/engines/* 2>/dev/null; node node_modules/prisma/build/index.js generate && node node_modules/prisma/build/index.js db push || echo 'prisma setup failed (non-fatal)'",
     "db:push": "npx prisma db push",
+    "db:seed": "node scripts/seed.js",
     "db:studio": "npx prisma studio"
   },
   "dependencies": {
