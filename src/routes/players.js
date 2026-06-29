@@ -44,7 +44,7 @@ router.get('/me', discordAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Update own profile (Discord JWT required)
+// Update own profile (Discord JWT required) — rank locked once set
 router.put('/me', discordAuth,
   body().custom((value, { req }) => {
     const allowed = ['displayName','riotId','rank','role'];
@@ -62,7 +62,8 @@ router.put('/me', discordAuth,
       const data = {};
       if (displayName !== undefined) data.displayName = displayName;
       if (riotId !== undefined) data.riotId = riotId;
-      if (rank !== undefined) data.rank = rank;
+      // Rank locked: if player already has a rank, ignore rank changes
+      if (rank !== undefined && (!player.rank || player.rank === 'Unranked')) data.rank = rank;
       if (role !== undefined) data.role = role;
       const updated = await prisma.player.update({ where: { id: player.id }, data });
       res.json(updated);
@@ -115,6 +116,17 @@ router.get('/lookup/:discordId', async (req, res, next) => {
     const player = await prisma.player.findFirst({ where: { discordId: req.params.discordId } });
     if (!player) return res.status(404).json({ error: 'Player not found' });
     res.json(player);
+  } catch (e) { next(e); }
+});
+
+router.post('/batch-lookup', async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+    const players = await prisma.player.findMany({ where: { discordId: { in: ids } } });
+    const map = {};
+    for (const p of players) map[p.discordId] = p;
+    res.json(map);
   } catch (e) { next(e); }
 });
 

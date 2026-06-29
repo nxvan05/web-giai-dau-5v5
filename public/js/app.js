@@ -1468,7 +1468,9 @@ async function generateSchedule() {
             const roleSel = document.getElementById('pe-role');
             if (currentRole && currentRole !== '-') roleSel.value = currentRole;
             const rankSelect = document.getElementById('pe-rank');
-            if (lastRiotLookup) {
+            const currentRank = document.getElementById('p-rank').textContent;
+            const hasRank = currentRank && currentRank !== '-' && currentRank !== 'Chưa có' && currentRank !== 'Unranked';
+            if (hasRank) {
                 rankSelect.disabled = true;
                 rankSelect.classList.add('opacity-50', 'cursor-not-allowed');
                 document.getElementById('pe-rank-lock-notice').classList.remove('hidden');
@@ -2418,8 +2420,11 @@ async function generateSchedule() {
                             html += '<span class="text-[10px] text-yellow-400 font-mono font-bold">' + (team.pts || 0) + 'đ</span></div>';
 
                             html += '<div class="space-y-2">';
+                            const rosterPlayers = team.rosterPlayers || [];
+                            const rosterMap = {};
+                            for (const rp of rosterPlayers) rosterMap[rp.discordId] = rp;
                             for (const rid of roster) {
-                                const p = await api('/api/players/lookup/' + rid).catch(() => null);
+                                const p = rosterMap[rid] || null;
                                 const name = p ? p.displayName : rid;
                                 const isCap = rid === team.captainDiscordId;
                                 const avatarUrl = p?.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + rid + '/' + p.discordAvatar + '.png?size=32' : '';
@@ -2508,8 +2513,11 @@ async function generateSchedule() {
                             badgeText = '1 người';
                         }
 
-                        const captainPlayer = await api('/api/players/lookup/' + team.captainDiscordId).catch(() => null);
-                        const captainName = captainPlayer ? captainPlayer.displayName : team.captainDiscordId;
+                        const rosterPlayers = team.rosterPlayers || [];
+                        const rosterMap = {};
+                        for (const rp of rosterPlayers) rosterMap[rp.discordId] = rp;
+                        const captainP = rosterMap[team.captainDiscordId] || null;
+                        const captainName = captainP ? captainP.displayName : team.captainDiscordId;
 
                         html += '<div class="bg-valCard border ' + borderColor + ' rounded-2xl p-5 hover:shadow-lg transition">';
                         html += '<div class="flex items-center justify-between mb-3">';
@@ -2520,7 +2528,7 @@ async function generateSchedule() {
 
                         html += '<div class="space-y-1.5 mb-3">';
                         for (const rid of roster) {
-                            const p = await api('/api/players/lookup/' + rid).catch(() => null);
+                            const p = rosterMap[rid] || null;
                             const name = p ? p.displayName : rid;
                             const isCap = rid === team.captainDiscordId;
                             html += '<div class="flex items-center gap-2 bg-valBg/60 p-2 rounded-lg text-xs">';
@@ -3410,6 +3418,49 @@ async function generateSchedule() {
             });
             initAdminEasterEgg();
             initParticles();
+            // Hover feedback cho các vùng tương tác ẩn
+            let audioCtx = null;
+            function hoverBeep() {
+                try {
+                    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.frequency.value = 880; gain.gain.value = 0.05;
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+                } catch(e) {}
+            }
+            document.querySelectorAll('[data-interactive]').forEach(el => {
+                el.addEventListener('mouseenter', function() {
+                    this.classList.add('wiggle');
+                    setTimeout(() => this.classList.remove('wiggle'), 600);
+                    hoverBeep();
+                });
+            });
+            // Twinkle effect trên logo và các elements có data-interactive
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes wiggle {
+                    0%,100%{transform:rotate(0deg)}
+                    20%{transform:rotate(-3deg) scale(1.05)}
+                    40%{transform:rotate(3deg) scale(1.05)}
+                    60%{transform:rotate(-2deg)}
+                    80%{transform:rotate(2deg)}
+                }
+                .wiggle { animation: wiggle 0.6s ease-in-out; }
+                [data-interactive] { cursor: pointer; transition: all 0.2s; }
+                [data-interactive]:hover { filter: brightness(1.3); transform: scale(1.05); }
+            `;
+            document.head.appendChild(style);
+            // Mark easter egg elements
+            const logo = document.getElementById('main-logo');
+            if (logo) logo.setAttribute('data-interactive', '1');
+            document.querySelectorAll('span').forEach(el => {
+                if (el.textContent.includes('make u feel better')) el.setAttribute('data-interactive', '1');
+            });
+            document.querySelectorAll('[class*="21"]').forEach(el => {
+                if (el.textContent.includes('TRẦN')) el.setAttribute('data-interactive', '1');
+            });
             console.log('%c🎮 Evan Cup loaded. Type %cevan.help() %cfor secrets!', 'color:#888', 'color:#00f2fe;font-weight:bold', 'color:#888');
         }
         // === Context Menu ===
@@ -3452,14 +3503,7 @@ async function generateSchedule() {
                     if (el && !el.classList.contains('hidden')) el.classList.add('hidden');
                 });
             }
-            if (!e.ctrlKey && !e.metaKey && !e.altKey && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
-                const tabs = ['guide-tab','register-tab','teams-tab','admin-tab','schedule-tab','veto-tab','leaderboard-tab','bracket-tab','stream-tab'];
-                const num = parseInt(e.key);
-                if (num >= 1 && num <= 9) {
-                    const tab = tabs[num-1];
-                    if (tab && document.getElementById('btn-' + tab)) { switchTab(tab); }
-                }
-            }
+            // Mouse-only interactions — no keyboard shortcuts beyond Escape
         });
         // === Copy on double-click ===
         document.addEventListener('dblclick', function(e) {

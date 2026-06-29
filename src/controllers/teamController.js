@@ -30,7 +30,20 @@ exports.listAll = async (req, res, next) => {
     } catch (_) {}
     const where = authed ? {} : { status: 'approved' };
     const teams = await prisma.team.findMany({ where, orderBy: { createdAt: 'desc' } });
-    res.json(teams);
+    // Attach player data for each team's roster
+    const allIds = [];
+    for (const t of teams) {
+      const roster = JSON.parse(t.rosterJson || '[]');
+      for (const id of roster) if (!allIds.includes(id)) allIds.push(id);
+    }
+    const players = await prisma.player.findMany({ where: { discordId: { in: allIds } } });
+    const playerMap = {};
+    for (const p of players) playerMap[p.discordId] = p;
+    const enriched = teams.map(t => {
+      const roster = JSON.parse(t.rosterJson || '[]');
+      return { ...t, rosterPlayers: roster.map(id => playerMap[id] || null).filter(Boolean) };
+    });
+    res.json(enriched);
   } catch (e) { next(e); }
 };
 

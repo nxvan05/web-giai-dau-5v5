@@ -43,7 +43,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, message: { error: 'Too many requests, try again later' } });
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 2000, message: { error: 'Too many requests, try again later' } });
 app.use('/api', apiLimiter);
 
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Too many login attempts, try again later' } });
