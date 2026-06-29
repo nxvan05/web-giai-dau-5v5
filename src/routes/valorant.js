@@ -60,9 +60,13 @@ router.post('/lookup', async (req, res) => {
 
     const data = await henrikRequest(`/valorant/v2/mmr/${reg}/${name}/${tag}`);
 
-    const rankInfo = parseRank(data.current_data?.currenttierpatched);
+    // Ưu tiên peak rank (highest_rank) hơn current rank
+    const rankSource = data.highest_rank?.patched_tier || data.current_data?.currenttierpatched;
+    const rankInfo = parseRank(rankSource);
     res.json({
       riotId: `${data.name}#${data.tag}`,
+      peakRank: data.highest_rank?.patched_tier || null,
+      currentRank: data.current_data?.currenttierpatched || null,
       rank: rankInfo?.display || 'Unknown',
       pts: rankInfo?.pts || 3,
       elo: data.current_data?.elo || data.current_data?.ranking_in_tier || 0,

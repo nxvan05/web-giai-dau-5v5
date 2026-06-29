@@ -809,7 +809,8 @@
                 rankSelect.disabled = true;
                 rankSelect.classList.add('opacity-60', 'cursor-not-allowed');
                 updateFormPoints();
-                resultEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-lock mr-1"></i>${data.rank} · ${data.elo} elo · ${data.pts}đ <span class="text-gray-500">(tự động từ Riot)</span></span>`;
+                const peakLabel = data.peakRank ? `Peak: ${data.peakRank} · Current: ${data.currentRank}` : data.currentRank;
+                resultEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-lock mr-1"></i>${data.rank} · ${data.elo} elo · ${data.pts}đ <span class="text-gray-500">(Peak: ${data.peakRank || data.rank})</span></span>`;
             } catch(e) {
                 resultEl.innerHTML = `<span class="text-valRed"><i class="fa-solid fa-circle-exclamation mr-1"></i>${e.message}</span>`;
             }
