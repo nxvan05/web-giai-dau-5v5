@@ -1,3 +1,12 @@
+// Auto-update: set git tracking and pull latest code
+try {
+  const { execSync } = require('child_process');
+  execSync('git config branch.master.remote origin 2>/dev/null', { stdio: 'ignore' });
+  execSync('git config branch.master.merge refs/heads/master 2>/dev/null', { stdio: 'ignore' });
+  execSync('git pull --ff-only 2>/dev/null', { stdio: 'ignore' });
+  execSync('npx prisma db push 2>/dev/null', { stdio: 'ignore' });
+} catch (_) {}
+
 const express = require('express');
 const http = require('http');
 const https = require('https');

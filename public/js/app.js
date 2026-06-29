@@ -678,7 +678,25 @@
             status.classList.add('hidden');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class=\"fa-solid fa-paper-plane mr-2\"></i>Gửi Đơn Lên Phòng Duyệt';
-            if (editSection) editSection.classList.toggle('hidden', !apiToken);
+            if (editSection) {
+                editSection.classList.remove('hidden');
+                const editNotice = document.getElementById('edit-discord-notice');
+                const editForm = document.getElementById('edit-player-form');
+                const editSearchRow = editSection.querySelector('.flex.gap-2');
+                if (discordUser) {
+                    document.getElementById('edit-discord-id').value = discordUser.discordId;
+                    document.getElementById('edit-discord-id').disabled = true;
+                    if (editNotice) editNotice.classList.add('hidden');
+                    if (editSearchRow) editSearchRow.classList.remove('hidden');
+                    if (editForm) editForm.classList.remove('hidden');
+                } else {
+                    document.getElementById('edit-discord-id').value = '';
+                    document.getElementById('edit-discord-id').disabled = false;
+                    if (editNotice) editNotice.classList.remove('hidden');
+                    if (editSearchRow) editSearchRow.classList.add('hidden');
+                    if (editForm) editForm.classList.add('hidden');
+                }
+            }
 
             if (!discordUser) {
                 status.className = 'mb-4 p-4 rounded-xl border text-sm bg-yellow-500/10 border-yellow-500/30 text-yellow-300';
@@ -737,14 +755,13 @@
             };
             const body = {
                 displayName: d.discord,
+                discordId: d.discordId,
                 riotId: d.id,
                 rank: d.rank,
                 role: d.role,
                 type: d.type,
                 pts: d.pts
             };
-            // if not Discord-authed, send discordId manually (admin import)
-            if (!discordUser) body.discordId = d.discordId;
             try {
                 await api('/api/players', { method: 'POST', body });
                 showToast('Đăng ký thành công!', 'success');
