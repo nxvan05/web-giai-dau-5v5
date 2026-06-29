@@ -649,17 +649,39 @@
         </section>
 
         <section id="teams-tab" class="tab-content hidden">
-            <div class="max-w-4xl mx-auto">
-                <div class="flex items-center justify-between mb-6">
-                    <div>
-                        <h3 class="font-display text-xl font-black text-white uppercase tracking-wider"><i class="fa-solid fa-people-group text-valCyan mr-2"></i>Danh Sách Đội</h3>
-                        <p class="text-xs text-gray-500 mt-1">Chọn đội để gửi đơn xin gia nhập</p>
+            <div class="max-w-4xl mx-auto space-y-8">
+
+                <div id="my-team-section" class="hidden">
+                    <h3 class="font-display text-xl font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-flag text-valCyan"></i>Đội Của Tôi
+                    </h3>
+                    <div id="my-team-content" class="bg-valCard border border-gray-800 rounded-2xl p-5 space-y-4"></div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="font-display text-xl font-black text-white uppercase tracking-wider">
+                                <i class="fa-solid fa-people-group text-valCyan mr-2"></i>Danh Sách Đội
+                            </h3>
+                            <p class="text-xs text-gray-500 mt-1">Chọn đội để gửi đơn xin gia nhập</p>
+                        </div>
+                        <span id="teams-count" class="text-[11px] bg-valCard border border-gray-800 text-gray-400 px-3 py-1.5 rounded-lg font-mono">0 đội</span>
                     </div>
-                    <span id="teams-count" class="text-[11px] bg-valCard border border-gray-800 text-gray-400 px-3 py-1.5 rounded-lg font-mono">0 đội</span>
+                    <div id="teams-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-spinner animate-spin mr-2"></i>Đang tải...</div>
+                    </div>
                 </div>
-                <div id="teams-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-spinner animate-spin mr-2"></i>Đang tải...</div>
+
+                <div>
+                    <h3 class="font-display text-xl font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-user-plus text-gray-400"></i>Tuyển Thủ Tự Do
+                    </h3>
+                    <div id="free-agents-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        <div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-spinner animate-spin mr-2"></i>Đang tải...</div>
+                    </div>
                 </div>
+
             </div>
         </section>
 
@@ -777,43 +799,29 @@
                 </div>
                 <div class="p-6">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-                        <p class="text-xs text-gray-400">Trần đội hình <strong class="text-valRed">≤ 21 điểm</strong>. Kéo thả hoặc bấm T1/T2 để xếp người.</p>
-                        <div class="flex gap-2">
-                            <button onclick="exportTeamsToClipboard()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-xl text-xs transition border border-gray-700" title="Copy danh sách ra Discord">
-                                <i class="fa-solid fa-copy"></i> Sao Chép
+                        <p class="text-xs text-gray-400">Gom các đội nhỏ (1-3 người) thành đội 5 người hoàn chỉnh.</p>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="adminDraftTeams()" class="bg-gradient-to-r from-valRed to-valCyan text-white font-black px-4 py-2 rounded-xl text-xs transition shadow-md uppercase">
+                                <i class="fa-solid fa-shuffle mr-1"></i>Gom Đội (Auto Draft)
                             </button>
-                            <button onclick="autoDraftBalancedTeams()" class="bg-gradient-to-r from-valRed to-valCyan text-white font-black px-4 py-2 rounded-xl text-xs transition shadow-md uppercase">
-                                <i class="fa-solid fa-shuffle mr-1"></i>Tự Động Draft!
+                            <button onclick="loadCompleteTeams()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-xl text-xs transition border border-gray-700">
+                                <i class="fa-solid fa-rotate mr-1"></i>Làm Mới
                             </button>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-valBg/50 p-4 rounded-xl border border-gray-800 flex flex-col justify-between min-h-[300px]">
-                            <div>
-                                <div class="flex justify-between items-center mb-3 gap-2">
-                                    <input type="text" id="team1-name-input" value="Team Cyan" placeholder="Tên đội 1" class="flex-1 bg-valBg border border-valCyan/30 rounded-lg px-2 py-1 text-xs text-white font-bold uppercase">
-                                    <span id="team1-status" class="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-mono font-bold shrink-0">Hợp Lệ</span>
-                                </div>
-                                <div id="team1-slots" class="space-y-2"></div>
-                            </div>
-                            <div class="mt-4 pt-3 border-t border-gray-800 flex justify-between items-center">
-                                <span class="text-xs text-gray-400">Tổng điểm:</span>
-                                <span id="team1-total-points" class="text-xl font-black font-mono text-valCyan bg-valCyan/10 px-3 py-1 rounded border border-valCyan/20">0đ</span>
-                            </div>
-                        </div>
-                        <div class="bg-valBg/50 p-4 rounded-xl border border-gray-800 flex flex-col justify-between min-h-[300px]">
-                            <div>
-                                <div class="flex justify-between items-center mb-3 gap-2">
-                                    <input type="text" id="team2-name-input" value="Team Red" placeholder="Tên đội 2" class="flex-1 bg-valBg border border-valRed/30 rounded-lg px-2 py-1 text-xs text-white font-bold uppercase">
-                                    <span id="team2-status" class="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-mono font-bold shrink-0">Hợp Lệ</span>
-                                </div>
-                                <div id="team2-slots" class="space-y-2"></div>
-                            </div>
-                            <div class="mt-4 pt-3 border-t border-gray-800 flex justify-between items-center">
-                                <span class="text-xs text-gray-400">Tổng điểm:</span>
-                                <span id="team2-total-points" class="text-xl font-black font-mono text-valRed bg-valRed/10 px-3 py-1 rounded border border-valRed/20">0đ</span>
-                            </div>
+                    <!-- Complete Teams List -->
+                    <div id="complete-teams-list" class="space-y-3 mb-6">
+                        <div class="text-center py-8 text-gray-500 text-sm">Chưa có đội hoàn chỉnh. Bấm "Gom Đội" để tạo.</div>
+                    </div>
+
+                    <!-- Mini team browser for recruiting teams -->
+                    <div class="mb-4">
+                        <h4 class="text-xs font-bold text-yellow-400 uppercase mb-2 flex items-center gap-1">
+                            <i class="fa-solid fa-people-group"></i> Đội Đang Tuyển (1-3 người)
+                        </h4>
+                        <div id="admin-recruiting-teams" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="col-span-full text-center py-4 text-gray-500 text-xs">Đang tải...</div>
                         </div>
                     </div>
 
