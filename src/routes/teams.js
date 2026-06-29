@@ -91,6 +91,70 @@ router.post('/:name/leave', discordAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Join requests
+router.post('/:name/join', discordAuth, async (req, res, next) => {
+  try {
+    const { name } = req.params;
+    const team = await prisma.team.findFirst({ where: { name } });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
+    const player = await prisma.player.findFirst({ where: { discordId: req.discordUser.discordId } });
+    if (!player) return res.status(400).json({ error: 'Bạn chưa đăng ký thi đấu' });
+    if (player.teamId) return res.status(400).json({ error: 'Bạn đã trong đội ' + player.teamId });
+    const existing = await prisma.joinRequest.findFirst({ where: { teamId: team.id, playerDiscordId: req.discordUser.discordId, status: 'pending' } });
+    if (existing) return res.status(400).json({ error: 'Bạn đã gửi đơn rồi, chờ đội trưởng duyệt' });
+    const joinReq = await prisma.joinRequest.create({
+      data: { teamId: team.id, teamName: team.name, playerDiscordId: req.discordUser.discordId, playerName: req.discordUser.discordUsername }
+    });
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('joinRequest:created', joinReq);
+    res.status(201).json(joinReq);
+  } catch (e) { next(e); }
+});
+router.get('/:name/requests', discordAuth, async (req, res, next) => {
+  try {
+    const { name } = req.params;
+    const team = await prisma.team.findFirst({ where: { name } });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
+    if (team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng xem được' });
+    const requests = await prisma.joinRequest.findMany({ where: { teamId: team.id }, orderBy: { createdAt: 'desc' } });
+    res.json(requests);
+  } catch (e) { next(e); }
+});
+router.put('/:name/requests/:requestId/approve', discordAuth, async (req, res, next) => {
+  try {
+    const { name, requestId } = req.params;
+    const team = await prisma.team.findFirst({ where: { name } });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
+    if (team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới duyệt được' });
+    const joinReq = await prisma.joinRequest.findUnique({ where: { id: requestId } });
+    if (!joinReq || joinReq.teamId !== team.id) return res.status(404).json({ error: 'Đơn không tồn tại' });
+    if (joinReq.status !== 'pending') return res.status(400).json({ error: 'Đơn đã được xử lý' });
+    const roster = JSON.parse(team.rosterJson || '[]');
+    if (roster.length >= 5) return res.status(400).json({ error: 'Đội đã đủ 5 người' });
+    roster.push(joinReq.playerDiscordId);
+    await prisma.joinRequest.update({ where: { id: requestId }, data: { status: 'approved' } });
+    await prisma.team.update({ where: { id: team.id }, data: { rosterJson: JSON.stringify(roster) } });
+    await prisma.player.updateMany({ where: { discordId: joinReq.playerDiscordId }, data: { teamId: team.name } }).catch(() => {});
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('joinRequest:resolved', { requestId, status: 'approved', teamName: team.name, playerDiscordId: joinReq.playerDiscordId });
+    res.json({ ok: true, message: 'Đã duyệt ' + joinReq.playerName + ' vào đội' });
+  } catch (e) { next(e); }
+});
+router.put('/:name/requests/:requestId/reject', discordAuth, async (req, res, next) => {
+  try {
+    const { name, requestId } = req.params;
+    const team = await prisma.team.findFirst({ where: { name } });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
+    if (team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới từ chối được' });
+    const joinReq = await prisma.joinRequest.findUnique({ where: { id: requestId } });
+    if (!joinReq || joinReq.teamId !== team.id) return res.status(404).json({ error: 'Đơn không tồn tại' });
+    await prisma.joinRequest.update({ where: { id: requestId }, data: { status: 'rejected' } });
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('joinRequest:resolved', { requestId, status: 'rejected' });
+    res.json({ ok: true, message: 'Đã từ chối ' + joinReq.playerName });
+  } catch (e) { next(e); }
+});
+
 // KDA routes
 router.get('/kda/:matchId', getKDA);
 router.put('/kda/:matchId', auth, saveKDA);

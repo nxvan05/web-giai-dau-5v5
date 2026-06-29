@@ -145,6 +145,9 @@
                 <button onclick="switchTab('register-tab')" id="btn-register-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Đăng ký tham gia giải — Solo, Duo, Trio">
                     <i class="fa-solid fa-pen-to-square mr-2"></i>Form Đăng Ký
                 </button>
+                <button onclick="switchTab('teams-tab')" id="btn-teams-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Danh sách đội — gửi đơn xin vào đội">
+                    <i class="fa-solid fa-people-group mr-2"></i>Đội
+                </button>
                 <button onclick="switchTab('admin-tab')" id="btn-admin-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale relative hidden" title="Cân bằng đội, duyệt team, penalty, audit log">
                     <i class="fa-solid fa-crown mr-2"></i>Cân Bằng &amp; Draft
                     <span id="player-count-badge" class="absolute -top-1.5 -right-1.5 bg-valCyan text-valBg text-[10px] px-1.5 py-0.5 rounded-full font-black">0</span>
@@ -637,7 +640,21 @@
                 </div>
             </div>
 
-            <!-- (Đăng ký đội đã được gỡ bỏ) -->
+        </section>
+
+        <section id="teams-tab" class="tab-content hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="font-display text-xl font-black text-white uppercase tracking-wider"><i class="fa-solid fa-people-group text-valCyan mr-2"></i>Danh Sách Đội</h3>
+                        <p class="text-xs text-gray-500 mt-1">Chọn đội để gửi đơn xin gia nhập</p>
+                    </div>
+                    <span id="teams-count" class="text-[11px] bg-valCard border border-gray-800 text-gray-400 px-3 py-1.5 rounded-lg font-mono">0 đội</span>
+                </div>
+                <div id="teams-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-spinner animate-spin mr-2"></i>Đang tải...</div>
+                </div>
+            </div>
         </section>
 
         <section id="admin-tab" class="tab-content hidden">

@@ -2269,6 +2269,133 @@ async function generateSchedule() {
         }
 
         // === Bracket Tab ===
+        function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        // === Teams browser ===
+        async function loadTeamsBrowser() {
+            const container = document.getElementById('teams-list');
+            if (!container) return;
+            container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-spinner animate-spin mr-2"></i>Đang tải...</div>';
+            try {
+                const teams = await api('/api/teams/all');
+                document.getElementById('teams-count').textContent = teams.length + ' đội';
+                if (teams.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500">Chưa có đội nào được tạo</div>';
+                    return;
+                }
+                const myPlayer = discordUser ? await api('/api/players/lookup/' + discordUser.discordId).catch(() => null) : null;
+                const myTeamName = myPlayer?.teamId || null;
+                let html = '';
+                for (const team of teams) {
+                    const roster = JSON.parse(team.rosterJson || '[]');
+                    const isCaptain = discordUser && team.captainDiscordId === discordUser.discordId;
+                    const isMember = myTeamName === team.name;
+                    const canJoin = discordUser && myPlayer && !myTeamName && team.status === 'approved' && roster.length < 5 && !isCaptain;
+                    const reqCount = team._reqCount || 0;
+                    html += '<div class="bg-valCard border border-gray-800 rounded-2xl p-5 hover-scale">';
+                    html += '<div class="flex items-center justify-between mb-3">';
+                    html += '<div><h4 class="text-white font-bold text-base">' + escHtml(team.name) + '</h4>';
+                    html += '<span class="text-[10px] ' + (team.status === 'approved' ? 'text-emerald-400' : 'text-amber-400') + ' font-mono">' + (team.status === 'approved' ? 'Đã duyệt' : team.status === 'pending' ? 'Chờ duyệt' : 'Từ chối') + '</span></div>';
+                    html += '<span class="text-[10px] text-gray-500 font-mono">' + roster.length + '/5 thành viên</span></div>';
+                    html += '<div class="space-y-1.5 mb-3">';
+                    for (const rid of roster) {
+                        const p = await api('/api/players/lookup/' + rid).catch(() => null);
+                        const name = p ? p.displayName : rid;
+                        const isCap = rid === team.captainDiscordId;
+                        html += '<div class="flex items-center gap-2 bg-valBg/60 p-2 rounded-lg text-xs"><i class="fa-solid fa-user text-gray-500"></i><span class="text-gray-300">' + escHtml(name) + '</span>' + (isCap ? '<span class="text-[9px] bg-yellow-500/20 text-yellow-400 px-1.5 rounded font-bold">ĐT</span>' : '') + '</div>';
+                    }
+                    if (roster.length < 5) {
+                        for (let i = roster.length; i < 5; i++) {
+                            html += '<div class="flex items-center gap-2 bg-valBg/30 border border-dashed border-gray-800 p-2 rounded-lg text-xs text-gray-600"><i class="fa-solid fa-plus"></i><span>Trống</span></div>';
+                        }
+                    }
+                    html += '</div>';
+                    html += '<div class="flex gap-2">';
+                    if (canJoin) {
+                        html += '<button onclick="sendJoinRequest(\'' + team.name + '\')" class="flex-1 text-[11px] bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg font-bold hover:bg-valCyan/30 transition"><i class="fa-solid fa-hand mr-1"></i>Xin Vào Đội</button>';
+                    }
+                    if (isMember) {
+                        html += '<button disabled class="flex-1 text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-2 rounded-lg font-bold"><i class="fa-solid fa-check mr-1"></i>Đã Trong Đội</button>';
+                    }
+                    if (isCaptain) {
+                        html += '<button onclick="loadCaptainDashboard()" class="flex-1 text-[11px] bg-amber-500/20 text-amber-400 border border-amber-400/30 px-3 py-2 rounded-lg font-bold hover:bg-amber-500/30 transition"><i class="fa-solid fa-crown mr-1"></i>Quản Lý' + (reqCount > 0 ? ' <span class="bg-red-500 text-white text-[8px] px-1.5 rounded-full">' + reqCount + '</span>' : '') + '</button>';
+                    }
+                    html += '</div></div>';
+                }
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = '<div class="col-span-full text-center py-12 text-red-400">Lỗi tải danh sách đội: ' + e.message + '</div>';
+            }
+        }
+
+        async function sendJoinRequest(teamName) {
+            if (!discordUser) return showToast('Cần đăng nhập Discord!', 'error');
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/join', { method: 'POST' });
+                showToast('Đã gửi đơn xin vào đội ' + teamName + '! Chờ đội trưởng duyệt.', 'success');
+                loadTeamsBrowser();
+            } catch(e) {
+                showToast('Lỗi: ' + e.message, 'error');
+            }
+        }
+
+        async function loadCaptainDashboard() {
+            if (!discordUser) return showToast('Cần đăng nhập Discord!', 'error');
+            try {
+                const teams = await api('/api/teams/all');
+                const myTeams = teams.filter(t => t.captainDiscordId === discordUser.discordId);
+                const info = document.getElementById('captain-info');
+                if (!info) return;
+                info.classList.remove('hidden');
+                if (myTeams.length === 0) {
+                    info.innerHTML = '<div class="bg-valCard border border-gray-800 p-4 rounded-xl mb-4"><p class="text-sm text-gray-400">Bạn không phải đội trưởng đội nào. <button onclick="switchTab(\'teams-tab\')" class="text-valCyan underline">Xem danh sách đội</button></p></div>';
+                    return;
+                }
+                for (const team of myTeams) {
+                    const requests = await api('/api/teams/' + encodeURIComponent(team.name) + '/requests');
+                    team._reqCount = requests.filter(r => r.status === 'pending').length;
+                    team._requests = requests;
+                }
+                let html = '';
+                for (const team of myTeams) {
+                    const pending = (team._requests || []).filter(r => r.status === 'pending');
+                    html += '<div class="bg-valCard border border-gray-800 p-4 rounded-xl mb-4">';
+                    html += '<h4 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-people-arrows text-amber-400"></i> Đơn xin vào <strong>' + escHtml(team.name) + '</strong>';
+                    if (pending.length > 0) html += ' <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">' + pending.length + ' đơn</span>';
+                    html += '</h4>';
+                    if (pending.length === 0) {
+                        html += '<p class="text-xs text-gray-500">Chưa có đơn xin vào đội</p>';
+                    } else {
+                        for (const r of pending) {
+                            html += '<div class="flex items-center justify-between bg-valBg/60 p-3 rounded-lg mb-2 border border-gray-800">';
+                            html += '<div><p class="text-sm text-white font-bold">' + escHtml(r.playerName) + '</p><p class="text-[10px] text-gray-500 font-mono">' + r.playerDiscordId + '</p></div>';
+                            html += '<div class="flex gap-2"><button onclick="approveJoinRequest(\'' + team.name + '\',\'' + r.id + '\')" class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-500/30 transition"><i class="fa-solid fa-check"></i> Duyệt</button>';
+                            html += '<button onclick="rejectJoinRequest(\'' + team.name + '\',\'' + r.id + '\')" class="text-[10px] bg-red-500/20 text-red-400 border border-red-400/30 px-3 py-1.5 rounded-lg font-bold hover:bg-red-500/30 transition"><i class="fa-solid fa-xmark"></i> Từ chối</button></div></div>';
+                        }
+                    }
+                    html += '</div>';
+                }
+                info.innerHTML = html;
+                switchTab('dashboard-tab');
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+
+        async function approveJoinRequest(teamName, requestId) {
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/requests/' + requestId + '/approve', { method: 'PUT' });
+                showToast('Đã duyệt thành viên!', 'success');
+                loadCaptainDashboard();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+
+        async function rejectJoinRequest(teamName, requestId) {
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/requests/' + requestId + '/reject', { method: 'PUT' });
+                showToast('Đã từ chối', 'info');
+                loadCaptainDashboard();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+
         async function loadBracket() {
             const container = document.getElementById('bracket-container');
             const btn = document.getElementById('btn-generate-playoff');
@@ -2695,6 +2822,7 @@ async function generateSchedule() {
             if (id === 'dashboard-tab') { loadCaptainDashboard(); }
             if (id === 'profile-tab') { loadPlayerProfile(); }
             if (id === 'schedule-tab') { renderSchedule(); }
+            if (id === 'teams-tab') { loadTeamsBrowser(); }
             if (id === 'veto-tab') { loadVetoMatches(); }
             if (id === 'leaderboard-tab') { loadLeaderboard(); loadStandings(); }
             if (id === 'bracket-tab') { loadBracket(); }

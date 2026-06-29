@@ -161,6 +161,16 @@ model Notification {
   createdAt DateTime @default(now())
 }
 
+model JoinRequest {
+  id        String   @id @default(cuid())
+  teamId    String
+  teamName  String
+  playerDiscordId String
+  playerName      String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+}
+
 model Caster {
   id        String   @id @default(cuid())
   name      String
