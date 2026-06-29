@@ -3452,7 +3452,7 @@ async function generateSchedule() {
                     if (el && !el.classList.contains('hidden')) el.classList.add('hidden');
                 });
             }
-            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (!e.ctrlKey && !e.metaKey && !e.altKey && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
                 const tabs = ['guide-tab','register-tab','teams-tab','admin-tab','schedule-tab','veto-tab','leaderboard-tab','bracket-tab','stream-tab'];
                 const num = parseInt(e.key);
                 if (num >= 1 && num <= 9) {
