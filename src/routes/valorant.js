@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const https = require('https');
+
+const API_KEY = process.env.HENRIKDEV_API_KEY || '';
 
 const RANK_MAP = {
   'Iron': 'Iron (Sắt)', 'Bronze': 'Bronze (Đồng)', 'Silver': 'Silver (Bạc)',
@@ -15,6 +18,32 @@ function parseRank(tierPatched) {
   return { display: RANK_MAP[base] || tierPatched, pts: RANK_PTS[base] || 3, base };
 }
 
+function henrikRequest(path) {
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: 'api.henrikdev.xyz',
+      path,
+      method: 'GET',
+      headers: { 'User-Agent': 'EvanCup/1.0' }
+    };
+    if (API_KEY) opts.headers['Authorization'] = 'Bearer ' + API_KEY;
+    const req = https.get(opts, (resp) => {
+      let body = '';
+      resp.on('data', chunk => body += chunk);
+      resp.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          if (resp.statusCode === 401) return reject(new Error('API key không hợp lệ. Vào https://api.henrikdev.xyz/dashboard/ tạo key và thêm vào .env'));
+          if (resp.statusCode !== 200) return reject(new Error(json.errors?.[0]?.message || 'Không tìm thấy người chơi'));
+          resolve(json.data);
+        } catch(e) { reject(new Error('Lỗi parse response')); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 router.post('/lookup', async (req, res) => {
   try {
     const { riotId, region } = req.body;
@@ -25,20 +54,7 @@ router.post('/lookup', async (req, res) => {
     const tag = encodeURIComponent(parts.slice(1).join('#'));
     const reg = (region || 'ap').toLowerCase();
 
-    const data = await new Promise((resolve, reject) => {
-      const http = require('https');
-      http.get(`https://api.henrikdev.xyz/valorant/v1/mmr/${reg}/${name}/${tag}`, (resp) => {
-        let body = '';
-        resp.on('data', chunk => body += chunk);
-        resp.on('end', () => {
-          try {
-            const json = JSON.parse(body);
-            if (resp.statusCode !== 200) return reject(new Error(json.errors?.[0]?.message || 'Không tìm thấy người chơi'));
-            resolve(json.data);
-          } catch(e) { reject(new Error('Lỗi parse response')); }
-        });
-      }).on('error', reject);
-    });
+    const data = await henrikRequest(`/valorant/v2/mmr/${reg}/${name}/${tag}`);
 
     const rankInfo = parseRank(data.current_data?.currenttierpatched);
     res.json({
