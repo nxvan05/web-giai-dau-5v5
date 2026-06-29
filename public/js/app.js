@@ -3364,7 +3364,7 @@ async function generateSchedule() {
         }
         function initEasterEggs() {
             const logoEl = document.getElementById('main-logo');
-            if (logo) {
+            if (logoEl) {
                 logo.addEventListener('dblclick', function(e) {
                     fireConfetti(80);
                     playEasterEggSound();
@@ -3442,7 +3442,6 @@ async function generateSchedule() {
             `;
             document.head.appendChild(style);
             // Mark easter egg elements
-            const logoEl = document.getElementById('main-logo');
             if (logoEl) logoEl.setAttribute('data-interactive', '1');
             document.querySelectorAll('span').forEach(el => {
                 if (el.textContent.includes('make u feel better')) el.setAttribute('data-interactive', '1');
