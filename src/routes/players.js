@@ -86,7 +86,7 @@ router.post('/', orAuth,
   pc.create
 );
 
-router.put('/:id', auth,
+router.put('/:id', orAuth,
   body().custom((value, { req }) => {
     const allowed = ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps'];
     const hasFields = allowed.some(key => req.body[key] !== undefined);
@@ -97,7 +97,7 @@ router.put('/:id', auth,
   pc.updatePartial
 );
 
-router.patch('/:id', auth,
+router.patch('/:id', orAuth,
   body().custom((value, { req }) => {
     const allowed = ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps'];
     const hasFields = allowed.some(key => req.body[key] !== undefined);

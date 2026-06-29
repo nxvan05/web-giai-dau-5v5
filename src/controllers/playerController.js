@@ -36,6 +36,12 @@ exports.create = async (req, res) => {
 
 exports.updatePartial = async (req, res) => {
   const { id } = req.params;
+  // Discord user can only edit their own record
+  if (req.discordUser) {
+    const existing = await prisma.player.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (existing.discordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Không có quyền sửa người khác' });
+  }
   const allowed = ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps'];
   const data = {};
   for (const key of allowed) {

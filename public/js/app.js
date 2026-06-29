@@ -2062,7 +2062,7 @@ async function generateSchedule() {
             }
         }
         async function savePlayerEdit() {
-            if (!requireAdminAuth()) return showToast('Lỗi xác thực!', 'error');
+            if (!apiToken && !discordUser) return showToast('Cần đăng nhập để chỉnh sửa!', 'error');
             const id = document.getElementById('edit-player-id').value;
             const data = {
                 displayName: document.getElementById('edit-display-name').value.trim(),
