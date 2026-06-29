@@ -26,7 +26,7 @@ function henrikRequest(path) {
       method: 'GET',
       headers: { 'User-Agent': 'EvanCup/1.0' }
     };
-    if (API_KEY) opts.headers['Authorization'] = 'Bearer ' + API_KEY;
+    if (API_KEY) opts.headers['Authorization'] = API_KEY;
     const req = https.get(opts, (resp) => {
       let body = '';
       resp.on('data', chunk => body += chunk);
