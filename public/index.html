@@ -45,6 +45,14 @@
         .hover-scale:hover { transform: translateY(-2px); }
         .cyber-bg-glow { background: radial-gradient(circle at 50% -20%, rgba(255, 70, 85, 0.15) 0%, transparent 60%); }
         
+        /* User dropdown menu */
+        .user-dropdown { position: absolute; top: calc(100% + 8px); right: 0; min-width: 220px; background: #111822; border: 1px solid #1f2937; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); opacity: 0; visibility: hidden; transform: translateY(-4px); transition: all 0.2s cubic-bezier(0.4,0,0.2,1); z-index: 999; }
+        .user-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+        .user-dropdown-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 16px; font-size: 13px; font-weight: 600; color: #d1d5db; transition: all 0.15s; cursor: pointer; border: none; background: none; text-align: left; font-family: inherit; }
+        .user-dropdown-item:hover { background: rgba(255,255,255,0.06); color: white; }
+        .user-dropdown-item i { width: 18px; text-align: center; font-size: 14px; }
+        .user-dropdown-divider { height: 1px; background: #1f2937; margin: 4px 0; }
+        
         .map-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .map-banned { filter: grayscale(1) brightness(0.35) contrast(1.2); border-color: #ff4655 !important; }
         .map-picked-cyan { border-color: #00f2fe !important; box-shadow: 0 0 20px rgba(0, 242, 254, 0.4); transform: scale(1.03); z-index: 10; }
@@ -135,12 +143,6 @@
                 <button onclick="switchTab('leaderboard-tab')" id="btn-leaderboard-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Bảng xếp hạng tuyển thủ + đội, click tên xem profile">
                     <i class="fa-solid fa-ranking-star mr-2"></i>Bảng XH
                 </button>
-                <button onclick="switchTab('dashboard-tab')" id="btn-dashboard-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Tra cứu lịch sử thi đấu, đối đầu">
-                    <i class="fa-solid fa-id-card mr-2"></i>Dashboard
-                </button>
-                <button onclick="switchTab('profile-tab')" id="btn-profile-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 bg-[#5865F2]/20 text-[#5865F2] border border-[#5865F2]/30 hover:bg-[#5865F2]/30 hover-scale hidden" title="Hồ sơ cá nhân của bạn">
-                    <i class="fa-brands fa-discord mr-2"></i>Hồ Sơ
-                </button>
                 <button onclick="switchTab('bracket-tab')" id="btn-bracket-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Vòng Playoff tranh chức vô địch">
                     <i class="fa-solid fa-diagram-project mr-2"></i>Playoff
                 </button>
@@ -168,10 +170,23 @@
 
             <!-- Discord Login -->
             <div id="discord-auth-section" class="flex items-center gap-2 shrink-0">
-                <div id="discord-user-info" class="hidden flex items-center gap-2 bg-[#5865F2]/10 border border-[#5865F2]/30 px-3 py-1.5 rounded-xl">
-                    <img id="discord-avatar" class="w-6 h-6 rounded-full" src="" alt="">
-                    <span id="discord-username" class="text-xs text-white font-bold"></span>
-                    <button onclick="logoutDiscord()" class="text-gray-500 hover:text-red-400 text-xs ml-1" title="Đăng xuất"><i class="fa-solid fa-sign-out-alt"></i></button>
+                <div id="discord-user-info" class="hidden relative" onclick="event.stopPropagation()">
+                    <button id="user-dropdown-trigger" class="flex items-center gap-2 bg-[#5865F2]/10 border border-[#5865F2]/30 hover:bg-[#5865F2]/20 hover:border-[#5865F2]/50 px-3 py-1.5 rounded-xl transition-all duration-200 cursor-pointer">
+                        <img id="discord-avatar" class="w-6 h-6 rounded-full" src="" alt="">
+                        <span id="discord-username" class="text-xs text-white font-bold"></span>
+                        <i class="fa-solid fa-chevron-down text-[10px] text-gray-400 ml-0.5 transition-transform duration-200" id="user-menu-chevron"></i>
+                    </button>
+                    <div id="user-dropdown" class="user-dropdown">
+                        <div class="px-4 py-3 border-b border-gray-800">
+                            <p id="dropdown-username" class="text-sm font-bold text-white truncate"></p>
+                            <p id="dropdown-discord-id" class="text-[11px] text-gray-400 font-mono mt-0.5"></p>
+                        </div>
+                        <button onclick="switchTab('profile-tab'); closeUserMenu()" class="user-dropdown-item"><i class="fa-brands fa-discord text-[#5865F2]"></i> Hồ Sơ Discord</button>
+                        <button onclick="switchTab('register-tab'); closeUserMenu()" class="user-dropdown-item"><i class="fa-solid fa-pen-to-square text-yellow-400"></i> Form Đăng Ký</button>
+                        <button onclick="switchTab('dashboard-tab'); closeUserMenu()" class="user-dropdown-item"><i class="fa-solid fa-id-card text-valCyan"></i> Dashboard</button>
+                        <div class="user-dropdown-divider"></div>
+                        <button onclick="logoutDiscord(); closeUserMenu()" class="user-dropdown-item text-red-400 hover:text-red-300"><i class="fa-solid fa-sign-out-alt"></i> Đăng Xuất</button>
+                    </div>
                 </div>
                 <button id="discord-login-btn" onclick="loginDiscord()" class="bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-2">
                     <i class="fa-brands fa-discord"></i> Đăng Nhập

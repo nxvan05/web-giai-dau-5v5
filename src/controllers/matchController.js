@@ -70,7 +70,7 @@ exports.updateResult = async (req, res) => {
 
   const io = getIO();
   if (io) io.emit('match:result', match);
-  try { const { createNotification } = require('../routes/notifications'); createNotification('match_result', `${match.team1Name} ${s1}-${s2} ${match.team2Name}`, { matchId: id, winner }); } catch(e) {}
+  try { const { createNotification } = require('../routes/notifications'); createNotification('match_result', match.team1Name + ' ' + s1 + '-' + s2 + ' ' + match.team2Name, { matchId: id, winner }); } catch(e) {}
 
   try {
     const team1Players = await prisma.player.findMany({ where: { teamId: existing.team1Name } });
@@ -91,21 +91,17 @@ exports.updateResult = async (req, res) => {
       for (const p of winningTeam) {
         const newElo = p.elo + winnerDelta;
         await prisma.player.update({ where: { id: p.id }, data: { elo: newElo, wins: { increment: 1 } } });
-        await prisma.eloHistory.create({
-          data: { playerDiscordId: p.discordId, elo: newElo, delta: winnerDelta, matchId: id, reason: 'win' }
-        });
+        await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: newElo, delta: winnerDelta, matchId: id, reason: 'win' } });
       }
       for (const p of losingTeam) {
         const newElo = p.elo + loserDelta;
         await prisma.player.update({ where: { id: p.id }, data: { elo: newElo, losses: { increment: 1 } } });
-        await prisma.eloHistory.create({
-          data: { playerDiscordId: p.discordId, elo: newElo, delta: loserDelta, matchId: id, reason: 'loss' }
-        });
+        await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: newElo, delta: loserDelta, matchId: id, reason: 'loss' } });
       }
     }
   } catch (e) { /* non-critical */ }
 
-  logAction('match.result', `${existing.team1Name} ${s1}-${s2} ${existing.team2Name}`).catch(err => log.error('Caught error', { error: err.message }));
+  logAction('match.result', existing.team1Name + ' ' + s1 + '-' + s2 + ' ' + existing.team2Name).catch(err => log.error('Caught error', { error: err.message }));
   if (winner || status === 'completed') {
     notifyMatchResult({ ...existing, score1: s1, score2: s2, winner, map: map || existing.map }).catch(err => log.error('Caught error', { error: err.message }));
   }
@@ -121,16 +117,10 @@ exports.setMvp = async (req, res, next) => {
     if (!match) return res.status(404).json({ error: 'Trận không tồn tại' });
     if (match.status !== 'completed') return res.status(400).json({ error: 'Chỉ có thể gán MVP cho trận đã kết thúc' });
 
-    await prisma.match.update({
-      where: { id },
-      data: { mvpDiscordId: discordId || null, mvpPlayerName: playerName || null }
-    });
-
+    await prisma.match.update({ where: { id }, data: { mvpDiscordId: discordId || null, mvpPlayerName: playerName || null } });
     if (discordId) {
       const player = await prisma.player.findFirst({ where: { discordId } });
-      if (player) {
-        await prisma.player.update({ where: { id: player.id }, data: { mvps: { increment: 1 } } });
-      }
+      if (player) await prisma.player.update({ where: { id: player.id }, data: { mvps: { increment: 1 } } });
     }
 
     const io = getIO();
@@ -140,9 +130,8 @@ exports.setMvp = async (req, res, next) => {
 };
 
 exports.delete = async (req, res) => {
-  const { id } = req.params;
   try {
-    await prisma.match.delete({ where: { id } });
+    await prisma.match.delete({ where: { id: req.params.id } });
     res.status(204).send();
   } catch (e) {
     if (e.code === 'P2025') return res.status(404).json({ error: 'Không tìm thấy trận' });
@@ -151,30 +140,69 @@ exports.delete = async (req, res) => {
 };
 
 exports.generateSchedule = async (req, res) => {
-  const { teams, startDate, matchDurationMinutes, group } = req.body;
+  const { teams, startDate, matchDurationMinutes, group, format } = req.body;
   if (!teams || teams.length < 2) return res.status(400).json({ error: 'Cần ít nhất 2 đội' });
+
+  if (format === 'swiss') {
+    const players = await prisma.player.findMany({ where: { teamId: { not: null } } });
+    const teamMap = {};
+    for (const p of players) { if (!teamMap[p.teamId]) teamMap[p.teamId] = { name: p.teamId, pts: 0, wins: 0, losses: 0, scoreDiff: 0 }; }
+    const completed = await prisma.match.findMany({ where: { status: 'completed' } });
+    for (const m of completed) {
+      if (teamMap[m.team1Name]) {
+        if (m.winner === m.team1Name) { teamMap[m.team1Name].wins++; teamMap[m.team1Name].pts += 3; }
+        else if (m.winner === m.team2Name) { teamMap[m.team1Name].losses++; }
+        teamMap[m.team1Name].scoreDiff += (m.score1 || 0) - (m.score2 || 0);
+      }
+      if (teamMap[m.team2Name]) {
+        if (m.winner === m.team2Name) { teamMap[m.team2Name].wins++; teamMap[m.team2Name].pts += 3; }
+        else if (m.winner === m.team1Name) { teamMap[m.team2Name].losses++; }
+        teamMap[m.team2Name].scoreDiff += (m.score2 || 0) - (m.score1 || 0);
+      }
+    }
+    const sorted = Object.values(teamMap).sort((a, b) => b.pts - a.pts || b.wins - a.wins || b.scoreDiff - a.scoreDiff);
+    const played = new Set(completed.map(m => [m.team1Name, m.team2Name].sort().join('|||')));
+    const paired = new Set();
+    const pairs = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (paired.has(sorted[i].name)) continue;
+      paired.add(sorted[i].name);
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (paired.has(sorted[j].name)) continue;
+        if (played.has([sorted[i].name, sorted[j].name].sort().join('|||'))) continue;
+        paired.add(sorted[j].name);
+        pairs.push([sorted[i].name, sorted[j].name]);
+        break;
+      }
+    }
+    if (pairs.length === 0) return res.status(400).json({ error: 'Không thể ghép cặp Swiss' });
+
+    const start = new Date(startDate || Date.now());
+    const dur = (matchDurationMinutes || 60) * 60000;
+    let t = start.getTime();
+    for (const [t1, t2] of pairs) {
+      await prisma.match.create({ data: { team1Name: t1, team2Name: t2, group: group || 'swiss', round: 'swiss', scheduledAt: new Date(t), status: 'pending' } });
+      t += dur;
+    }
+    const all = await prisma.match.findMany({ orderBy: { scheduledAt: 'asc' } });
+    logAction('schedule.swiss', pairs.length + ' matches').catch(err => log.error(err.message));
+    const io = getIO();
+    if (io) io.emit('matches:generated', { count: pairs.length, format: 'swiss' });
+    return res.status(201).json({ count: pairs.length, matches: all });
+  }
 
   const matches = [];
   const start = new Date(startDate || Date.now());
   const durationMs = (matchDurationMinutes || 60) * 60 * 1000;
   let currentTime = start.getTime();
-
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
-      matches.push({
-        team1Name: teams[i], team2Name: teams[j],
-        group: group || null, round: 'group',
-        scheduledAt: new Date(currentTime), status: 'pending'
-      });
+      matches.push({ team1Name: teams[i], team2Name: teams[j], group: group || null, round: 'group', scheduledAt: new Date(currentTime), status: 'pending' });
       currentTime += durationMs;
     }
   }
-
-  for (const m of matches) {
-    await prisma.match.create({ data: m });
-  }
-
-  logAction('schedule.generate', `${teams.length} teams`).catch(err => log.error('Caught error', { error: err.message }));
+  for (const m of matches) { await prisma.match.create({ data: m }); }
+  logAction('schedule.generate', teams.length + ' teams').catch(err => log.error('Caught error', { error: err.message }));
   const io = getIO();
   if (io) io.emit('matches:generated', { count: teams.length });
   const created = await prisma.match.findMany({ orderBy: { scheduledAt: 'asc' } });
@@ -261,10 +289,7 @@ exports.getTeamMatches = async (req, res, next) => {
       where: { OR: [{ team1Name: teamName }, { team2Name: teamName }] },
       orderBy: { scheduledAt: 'asc' }
     });
-    res.json(matches.map(m => ({
-      ...m, isTeam1: m.team1Name === teamName,
-      result: m.winner ? (m.winner === teamName ? 'win' : 'loss') : 'pending'
-    })));
+    res.json(matches.map(m => ({ ...m, isTeam1: m.team1Name === teamName, result: m.winner ? (m.winner === teamName ? 'win' : 'loss') : 'pending' })));
   } catch (e) { next(e); }
 };
 
@@ -276,7 +301,8 @@ exports.getUpcomingPlayerMatches = async (req, res) => {
   const matches = await prisma.match.findMany({
     where: {
       OR: [{ team1Name: player.teamId || '' }, { team2Name: player.teamId || '' }],
-      status: 'pending', scheduledAt: { gte: new Date() }
+      status: 'pending',
+      scheduledAt: { gte: new Date() }
     },
     orderBy: { scheduledAt: 'asc' }
   });
@@ -296,5 +322,3 @@ exports.getHeadToHead = async (req, res, next) => {
     res.json({ team1, team2, matches, t1Wins, t2Wins, draws: matches.filter(m => !m.winner && m.status === 'completed').length });
   } catch (e) { next(e); }
 };
-
-

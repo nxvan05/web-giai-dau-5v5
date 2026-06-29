@@ -6,6 +6,7 @@ const dc = require('../controllers/discordController');
 router.get('/auth-url', dc.getAuthUrl);
 router.get('/callback', dc.callback);
 router.get('/me', discordAuth, dc.me);
+router.post('/refresh', discordAuth, dc.refresh);
 router.post('/logout', dc.logout);
 
 module.exports = router;

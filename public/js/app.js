@@ -333,7 +333,7 @@
                 renderAdmin();
                 showToast("Đăng nhập quyền Admin thành công!", "success");
             } catch(e) {
-                showToast("Mã PIN bảo mật không chính xác!", "error");
+                showToast("Sai mật khẩu! Gợi ý: mật khẩu admin được tạo bằng script create-admin.js (mặc định: evankk123)", "error");
             }
         }
 
@@ -680,7 +680,16 @@
             submitBtn.innerHTML = '<i class=\"fa-solid fa-paper-plane mr-2\"></i>Gửi Đơn Lên Phòng Duyệt';
             if (editSection) editSection.classList.toggle('hidden', !apiToken);
 
-            if (!discordUser) return;
+            if (!discordUser) {
+                status.className = 'mb-4 p-4 rounded-xl border text-sm bg-yellow-500/10 border-yellow-500/30 text-yellow-300';
+                status.innerHTML = '<div class="flex items-center gap-3"><i class="fa-solid fa-shield-halved text-xl"></i><div><strong class="block">Cần đăng nhập Discord</strong><span class="text-xs text-yellow-400/80">Bấm nút <b class="text-white">Đăng Nhập</b> góc phải trên cùng để xác minh, sau đó mới gửi được đơn.</span></div></div>';
+                status.classList.remove('hidden');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa-brands fa-discord mr-2"></i>Đăng Nhập Discord Trước';
+                submitBtn.onclick = function(e) { e.preventDefault(); loginDiscord(); };
+                return;
+            }
+            submitBtn.onclick = null;
 
             discordInput.value = discordUser.discordUsername;
             discordIdInput.value = discordUser.discordId;
@@ -1091,16 +1100,30 @@
             }
         }
 
-        async function generateSchedule() {
+        async function generateSwissRound() {
+  const teamsText = document.getElementById('sched-teams').value.trim();
+  const teams = teamsText.split('\n').map(t => t.trim()).filter(t => t);
+  if (teams.length < 2) return showToast('Nhập ít nhất 2 đội!', 'error');
+  const startDate = document.getElementById('sched-date').value;
+  const duration = parseInt(document.getElementById('sched-duration').value) || 60;
+  const fmt = document.getElementById('sched-format')?.value || 'round-robin';
+  try {
+    await api('/api/matches/generate', { method: 'POST', body: { teams, startDate, matchDurationMinutes: duration, format: 'swiss' } });
+    showToast('Đã tạo vòng Swiss!', 'success');
+    loadSchedule();
+  } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+}
+
+async function generateSchedule() {
             const teamsText = document.getElementById('sched-teams').value.trim();
             const teams = teamsText.split('\n').map(t => t.trim()).filter(t => t);
             if (teams.length < 2) return showToast('Nhập ít nhất 2 đội (mỗi dòng 1 tên)!', 'error');
 
             const startDate = document.getElementById('sched-date').value;
-            const duration = parseInt(document.getElementById('sched-duration').value) || 60;
+            const fmt = document.getElementById('sched-format')?.value || 'round-robin';
 
             try {
-                await api('/api/matches/generate', { method: 'POST', body: { teams, startDate, matchDurationMinutes: duration } });
+                await api('/api/matches/generate', { method: 'POST', body: { teams, startDate, matchDurationMinutes: duration, format: fmt } });
                 showToast('Đã tạo lịch thi đấu!', 'success');
                 loadSchedule();
             } catch(e) {
@@ -1574,8 +1597,30 @@
         // === Discord Auth Functions ===
         let discordUser = null;
 
+        let _userMenuInitialized = false;
+        function initUserMenu() {
+            if (_userMenuInitialized) return;
+            _userMenuInitialized = true;
+            const trigger = document.getElementById('user-dropdown-trigger');
+            const dd = document.getElementById('user-dropdown');
+            const ch = document.getElementById('user-menu-chevron');
+            if (!trigger) return;
+            trigger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dd.classList.toggle('open');
+                if (ch) ch.style.transform = dd.classList.contains('open') ? 'rotate(180deg)' : '';
+            });
+            document.addEventListener('click', function() {
+                dd.classList.remove('open');
+                if (ch) ch.style.transform = '';
+            });
+        }
+
         async function checkDiscordAuth() {
+            initUserMenu();
             try {
+                // Auto-extend session before checking
+                await fetch('/api/discord/refresh', { method: 'POST', credentials: 'include' }).catch(() => {});
                 const res = await fetch('/api/discord/me', { credentials: 'include' });
                 if (res.ok) {
                     const data = await res.json();
@@ -1583,12 +1628,15 @@
                     document.getElementById('discord-login-btn').classList.add('hidden');
                     const info = document.getElementById('discord-user-info');
                     info.classList.remove('hidden');
-                    document.getElementById('discord-username').textContent = discordUser.discordUsername;
+                    const avatar = document.getElementById('discord-avatar');
+                    const username = document.getElementById('discord-username');
+                    username.textContent = discordUser.discordUsername;
+                    document.getElementById('dropdown-username').textContent = discordUser.discordUsername;
+                    document.getElementById('dropdown-discord-id').textContent = discordUser.discordId;
                     if (discordUser.discordAvatar) {
-                        document.getElementById('discord-avatar').src = 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png';
+                        const src = 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png';
+                        avatar.src = src;
                     }
-                    const profileBtn = document.getElementById('btn-profile-tab');
-                    if (profileBtn) profileBtn.classList.remove('hidden');
                     // Auto-fill Discord ID in dashboard input
                     const dashInput = document.getElementById('dashboard-discord-id');
                     if (dashInput) { dashInput.value = discordUser.discordId; }
@@ -1617,8 +1665,6 @@
             discordUser = null;
             document.getElementById('discord-login-btn').classList.remove('hidden');
             document.getElementById('discord-user-info').classList.add('hidden');
-            const profileBtn = document.getElementById('btn-profile-tab');
-            if (profileBtn) profileBtn.classList.add('hidden');
             showToast('Đã đăng xuất Discord', 'info');
         }
 
@@ -2645,6 +2691,10 @@
                 checkDiscordAuth();
                 showToast('Đã đăng nhập Discord thành công!', 'success');
                 setTimeout(() => { if (discordUser) switchTab('profile-tab'); }, 500);
+            }
+            if (params.get('discord') === 'denied') {
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showToast('Bạn đã từ chối cấp quyền Discord. Cần đăng nhập để gửi đơn.', 'error');
             }
             if (params.get('obs-widget') === '1') {
                 document.getElementById('obs-widget-overlay').classList.remove('hidden');

@@ -17,8 +17,10 @@ exports.getAuthUrl = (req, res) => {
 
 exports.callback = async (req, res) => {
   try {
-    const { code } = req.query;
-    if (!code) return res.status(400).json({ error: 'Missing code' });
+    const { code, error } = req.query;
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5000';
+    if (error) return res.redirect(FRONTEND_URL + '?discord=denied');
+    if (!code) return res.redirect(FRONTEND_URL + '?discord=denied');
 
     const tokenResp = await fetch('https://discord.com/api/oauth2/token', {
       method: 'POST',
@@ -59,7 +61,6 @@ exports.callback = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5000';
     res.redirect(FRONTEND_URL + '?discord=loggedin');
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -68,6 +69,31 @@ exports.callback = async (req, res) => {
 
 exports.me = (req, res) => {
   res.json({ user: req.discordUser });
+};
+
+// Re-issue JWT to extend session (7 more days)
+exports.refresh = async (req, res) => {
+  try {
+    const discordUser = req.discordUser;
+    const player = await prisma.player.findFirst({ where: { discordId: discordUser.discordId } });
+    const payload = {
+      type: 'discord',
+      discordId: discordUser.discordId,
+      discordUsername: discordUser.discordUsername,
+      discordAvatar: discordUser.discordAvatar,
+      playerId: player ? player.id : null,
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('discord_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    res.json({ user: payload });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 };
 
 exports.logout = (req, res) => {

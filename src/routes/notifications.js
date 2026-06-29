@@ -55,7 +55,10 @@ router.get('/in-app', orAuth, async (req, res, next) => {
   try {
     const notifs = await prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
     res.json(notifs);
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e.code === 'P2021') return res.json([]);
+    next(e);
+  }
 });
 
 module.exports = router;
