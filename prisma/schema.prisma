@@ -56,8 +56,11 @@ model Team {
   shortName       String?
   logo            String?
   captainDiscordId String?
-  status          String   @default("pending")
+  status          String   @default("recruiting")
   rosterJson      String?
+  teamType        String   @default("solo")
+  color           String   @default("#6B7280")
+  pts             Int      @default(0)
   createdAt       DateTime @default(now())
 }
 
