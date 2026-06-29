@@ -4,7 +4,7 @@
   "description": "Backend for Evan Cup tournament",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "git config branch.master.remote origin 2>/dev/null; git config branch.master.merge refs/heads/master 2>/dev/null; git pull --ff-only 2>/dev/null; node src/server.js",
     "dev": "nodemon src/server.js",
     "migrate": "npx prisma migrate deploy",
     "test": "jest --forceExit --detectOpenHandles",
