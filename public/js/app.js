@@ -158,9 +158,62 @@
             }
         }
 
+        // === Guide interactive functions ===
         function toggleHelpModal() {
             document.getElementById('help-modal').classList.toggle('hidden');
         }
+        let _guideInit = false;
+        function initGuideInteractions() {
+            if (_guideInit) return;
+            _guideInit = true;
+            // Carousel: dots + nav + counter
+            document.querySelectorAll('.guide-carousel').forEach(carousel => {
+                const slides = carousel.querySelectorAll('.guide-slide');
+                const dots = carousel.querySelectorAll('.guide-dot');
+                const prev = carousel.querySelector('.guide-prev');
+                const next = carousel.querySelector('.guide-next');
+                const counter = carousel.closest('.bg-valCard')?.querySelector('.guide-carousel-counter');
+                let idx = 0;
+                function show(i) {
+                    slides.forEach(s => s.classList.remove('active'));
+                    dots.forEach(d => d.classList.remove('active'));
+                    idx = (i + slides.length) % slides.length;
+                    slides[idx].classList.add('active');
+                    if (dots[idx]) dots[idx].classList.add('active');
+                    if (counter) counter.innerHTML = '<span class="text-white font-bold">' + (idx + 1) + '</span>/' + slides.length;
+                }
+                dots.forEach((d, i) => d.addEventListener('click', () => show(i)));
+                if (prev) prev.addEventListener('click', () => show(idx - 1));
+                if (next) next.addEventListener('click', () => show(idx + 1));
+                show(0);
+            });
+            // Accordion
+            document.querySelectorAll('.guide-accordion-header').forEach(h => {
+                h.addEventListener('click', () => {
+                    const body = h.nextElementSibling;
+                    if (!body || !body.classList.contains('guide-accordion-body')) return;
+                    const isOpen = body.classList.contains('open');
+                    body.classList.toggle('open');
+                    h.classList.toggle('open');
+                    body.style.maxHeight = isOpen ? '0' : body.scrollHeight + 'px';
+                });
+            });
+            // Popup triggers
+            document.querySelectorAll('[data-guide-popup]').forEach(el => {
+                el.addEventListener('click', () => {
+                    const id = el.getAttribute('data-guide-popup');
+                    const popup = document.getElementById(id);
+                    if (popup) popup.classList.remove('hidden');
+                });
+            });
+            // Close popups on backdrop click
+            document.querySelectorAll('.guide-popup-overlay').forEach(p => {
+                p.addEventListener('click', (e) => {
+                    if (e.target === p) p.classList.add('hidden');
+                });
+            });
+        }
+        document.addEventListener('DOMContentLoaded', initGuideInteractions);
 
         function showToast(msg, type='info') {
             const container = document.getElementById('toast-container');
