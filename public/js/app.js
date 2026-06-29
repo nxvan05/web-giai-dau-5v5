@@ -7,10 +7,12 @@
           const headers = { 'Content-Type': 'application/json' };
           if (apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
           if (opts.body && typeof opts.body === 'object') opts.body = JSON.stringify(opts.body);
-          const res = await fetch(API + endpoint, { credentials: 'include', ...opts, headers: { ...headers, ...opts.headers } });
+          let res;
+          try { res = await fetch(API + endpoint, { credentials: 'include', ...opts, headers: { ...headers, ...opts.headers } }); }
+          catch(e) { throw new Error('Không thể kết nối server — kiểm tra mạng'); }
           if (!res.ok) { let err; try { err = await res.json(); } catch(e) { err = { error: 'HTTP ' + res.status }; } throw new Error(err.error || 'Lỗi kết nối'); }
           if (res.status === 204) return null;
-          return res.json();
+          try { return await res.json(); } catch(e) { throw new Error('Server trả về dữ liệu không hợp lệ'); }
         }
 
         async function apiLogin(username, password) {
@@ -325,35 +327,9 @@
                             '<span class="font-mono font-bold ' + cls + '">' + (m.status === 'completed' ? m.score1 + '-' + m.score2 : '—') + '</span></div>';
                     }).join('');
 
-                // H2H opponent input
-                document.getElementById('h2h-opponent').dataset.myDiscord = discordId;
-
             } catch(e) {
                 document.getElementById('profile-name').textContent = 'Lỗi';
                 document.getElementById('profile-content').innerHTML = '<p class="text-red-400">' + e.message + '</p>';
-            }
-        }
-
-        async function loadH2H() {
-            const myId = document.getElementById('h2h-opponent').dataset.myDiscord;
-            const oppId = document.getElementById('h2h-opponent').value.trim();
-            const container = document.getElementById('h2h-result');
-            if (!oppId) { container.innerHTML = '<p class="text-gray-500">Nhập Discord ID đối thủ</p>'; return; }
-            try {
-                const me = await api('/api/players/' + myId + '/profile');
-                const opp = await api('/api/players/' + oppId + '/profile');
-                const t1 = me.player.teamId, t2 = opp.player.teamId;
-                if (!t1 || !t2) { container.innerHTML = '<p class="text-gray-500">Một trong hai không có đội</p>'; return; }
-                const data = await api('/api/matches/h2h/' + encodeURIComponent(t1) + '/' + encodeURIComponent(t2));
-                container.innerHTML =
-                    '<div class="flex items-center justify-around mt-2 text-center">' +
-                    '<div><span class="text-valCyan font-bold text-sm">' + data.t1Wins + '</span><span class="text-gray-500 block text-[10px]">' + me.player.displayName + '</span></div>' +
-                    '<div><span class="text-gray-500 text-lg font-bold">—</span></div>' +
-                    '<div><span class="text-red-400 font-bold text-sm">' + data.t2Wins + '</span><span class="text-gray-500 block text-[10px]">' + opp.player.displayName + '</span></div>' +
-                    '</div>' +
-                    '<div class="text-center text-gray-500 text-[10px] mt-1">' + data.matches.length + ' trận · ' + data.draws + ' hòa</div>';
-            } catch(e) {
-                container.innerHTML = '<p class="text-red-400 text-center">' + e.message + '</p>';
             }
         }
 
@@ -749,8 +725,11 @@
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class=\"fa-solid fa-check mr-2\"></i>Đã Đăng Ký';
             } catch (e) {
-                status.className = 'mb-4 p-3 rounded-xl border text-sm flex items-center gap-2 bg-valCyan/10 border-valCyan/30 text-valCyan';
-                status.innerHTML = '<i class=\"fa-solid fa-info-circle\"></i> Thông tin Discord đã được tự động điền';
+                const is404 = e.message.includes('not found') || e.message.includes('chưa đăng ký');
+                status.className = 'mb-4 p-3 rounded-xl border text-sm flex items-center gap-2 ' + (is404 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300' : 'bg-valCyan/10 border-valCyan/30 text-valCyan');
+                status.innerHTML = is404
+                    ? '<i class=\"fa-solid fa-pencil\"></i> Bạn chưa đăng ký — điền form bên dưới để tham gia giải!'
+                    : '<i class=\"fa-solid fa-info-circle\"></i> Thông tin Discord đã được tự động điền';
                 status.classList.remove('hidden');
             }
         }
@@ -1050,17 +1029,24 @@
             const controls = document.getElementById('admin-schedule-controls');
             if (apiToken && controls) {
                 controls.innerHTML = `<div class="mb-6 bg-valBg/50 p-4 rounded-xl border border-gray-800">
-                    <h4 class="text-sm font-bold text-valCyan mb-3 uppercase">Tạo lịch tự động</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+                    <h4 class="text-sm font-bold text-valCyan mb-3 uppercase">Tạo lịch thi đấu tự động</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-3">
                         <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Danh sách đội (cách xuống dòng)</label>
                         <textarea id="sched-teams" rows="3" placeholder="Đội A" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white"></textarea></div>
                         <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Ngày bắt đầu</label>
                         <input type="date" id="sched-date" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white"></div>
                         <div><label class="text-[10px] text-gray-400 uppercase block mb-1">Phút/trận</label>
                         <input type="number" id="sched-duration" value="60" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white"></div>
+<div><label class="text-[10px] text-gray-400 uppercase block mb-1">Định dạng</label>
+<select id="sched-format" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white">
+<option value="round-robin">Vòng tròn</option>
+<option value="swiss">Swiss</option>
+</select></div>
                         <div><label class="text-[10px] text-gray-400 uppercase block mb-1">&nbsp;</label>
                         <button onclick="generateSchedule()" class="w-full bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-valCyan/30 transition">
-                        <i class="fa-solid fa-gear mr-1"></i>Tạo lịch</button></div>
+                        <i class="fa-solid fa-gear mr-1"></i>Tạo lịch thi đấu</button>
+<button onclick="generateSwissRound()" class="w-full bg-purple-500/20 text-purple-400 border border-purple-500/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-purple-500/30 transition mt-1">
+<i class="fa-solid fa-shuffle mr-1"></i>Vòng Swiss</button></div>
                     </div>
                 </div>`;
             }
@@ -1180,7 +1166,7 @@
   if (teams.length < 2) return showToast('Nhập ít nhất 2 đội!', 'error');
   const startDate = document.getElementById('sched-date').value;
   const duration = parseInt(document.getElementById('sched-duration').value) || 60;
-  const fmt = document.getElementById('sched-format')?.value || 'round-robin';
+  const fmt = document.getElementById('sched-format') ? document.getElementById('sched-format').value : 'round-robin';
   try {
     await api('/api/matches/generate', { method: 'POST', body: { teams, startDate, matchDurationMinutes: duration, format: 'swiss' } });
     showToast('Đã tạo vòng Swiss!', 'success');
@@ -1194,7 +1180,8 @@ async function generateSchedule() {
             if (teams.length < 2) return showToast('Nhập ít nhất 2 đội (mỗi dòng 1 tên)!', 'error');
 
             const startDate = document.getElementById('sched-date').value;
-            const fmt = document.getElementById('sched-format')?.value || 'round-robin';
+            const duration = parseInt(document.getElementById('sched-duration').value) || 60;
+  const fmt = document.getElementById('sched-format') ? document.getElementById('sched-format').value : 'round-robin';
 
             try {
                 await api('/api/matches/generate', { method: 'POST', body: { teams, startDate, matchDurationMinutes: duration, format: fmt } });
@@ -1362,6 +1349,7 @@ async function generateSchedule() {
                 hideLoading();
                 loaded.classList.remove('hidden');
                 const p = data.player;
+                if (!p) { hideLoading(); loaded.classList.add('hidden'); notReg.classList.remove('hidden'); showToast('Bạn chưa đăng ký tham gia giải', 'info'); return; }
                 // Discord header
                 document.getElementById('profile-username').textContent = discordUser.discordUsername;
                 document.getElementById('profile-discord-id').textContent = 'Discord: ' + discordUser.discordId;
@@ -1762,6 +1750,7 @@ async function generateSchedule() {
             try {
                 const data = await api('/api/discord/auth-url');
                 if (data.url) window.location.href = data.url;
+                else showToast('Không thể lấy link đăng nhập Discord', 'error');
             } catch(e) {
                 showToast('Không thể kết nối Discord: ' + e.message, 'error');
             }
@@ -3374,7 +3363,7 @@ async function generateSchedule() {
             });
         }
         function initEasterEggs() {
-            const logo = document.getElementById('main-logo');
+            const logoEl = document.getElementById('main-logo');
             if (logo) {
                 logo.addEventListener('dblclick', function(e) {
                     fireConfetti(80);
@@ -3453,8 +3442,8 @@ async function generateSchedule() {
             `;
             document.head.appendChild(style);
             // Mark easter egg elements
-            const logo = document.getElementById('main-logo');
-            if (logo) logo.setAttribute('data-interactive', '1');
+            const logoEl = document.getElementById('main-logo');
+            if (logoEl) logoEl.setAttribute('data-interactive', '1');
             document.querySelectorAll('span').forEach(el => {
                 if (el.textContent.includes('make u feel better')) el.setAttribute('data-interactive', '1');
             });

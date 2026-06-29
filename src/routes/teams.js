@@ -8,6 +8,16 @@ const validate = require('../middleware/validate');
 const prisma = require('../utils/prisma');
 const containsProfanity = require('../utils/profanity');
 
+// Combined auth: admin token OR Discord JWT
+function orAuth(req, res, next) {
+  const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+  const discord = req.cookies?.discord_token;
+  const jwt = require('jsonwebtoken');
+  try { if (token) { req.user = jwt.verify(token, process.env.JWT_SECRET); return next(); } } catch(_) {}
+  try { if (discord) { const d = jwt.verify(discord, process.env.JWT_SECRET); if (d.type === 'discord') { req.discordUser = d; return next(); } } } catch(_) {}
+  return res.status(401).json({ error: 'Vui lòng đăng nhập' });
+}
+
 // Old auto-draft routes (auth required)
 router.get('/', auth, getTeams);
 router.put('/', auth, updateTeams);
@@ -15,11 +25,13 @@ router.put('/', auth, updateTeams);
 // New team registration (create is public, list/approve/reject need auth)
 router.get('/all', listAll);
 
-// Create team from registration (Duo/Trio)
-router.post('/create-from-registration', async (req, res, next) => {
+// Create team from registration (Duo/Trio) — requires Discord or admin auth
+router.post('/create-from-registration', orAuth, async (req, res, next) => {
   try {
-    const { name, discordId, displayName, pts, type } = req.body;
-    if (!name || !discordId) return res.status(400).json({ error: 'Thiếu tên đội hoặc Discord ID' });
+    const { name, discordId: bodyDiscordId, displayName, pts, type } = req.body;
+    // Use discord ID from auth token (trusted), fallback to body for admin
+    const discordId = req.discordUser ? req.discordUser.discordId : (req.user ? bodyDiscordId : null);
+    if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
     if (containsProfanity(name)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
     const existing = await prisma.team.findUnique({ where: { name } });
     if (existing) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
@@ -90,12 +102,13 @@ router.post('/admin/draft', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Rename team (captain only)
-router.put('/:name/rename', async (req, res, next) => {
+// Rename team (captain only) — requires Discord auth
+router.put('/:name/rename', discordAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
-    const { newName, discordId } = req.body;
-    if (!newName || !discordId) return res.status(400).json({ error: 'Thiếu tên mới hoặc Discord ID' });
+    const { newName } = req.body;
+    const discordId = req.discordUser.discordId;
+    if (!newName) return res.status(400).json({ error: 'Thiếu tên mới' });
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
     if (team.captainDiscordId !== discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới đổi tên được' });

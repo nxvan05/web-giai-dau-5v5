@@ -402,13 +402,4 @@ router.put('/score-reports/:id/reject', auth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/h2h/:team1/:team2', async (req, res) => {
-  const { team1, team2 } = req.params;
-  const matches = await prisma.match.findMany({
-    where: { OR: [{ team1Name: team1, team2Name: team2 }, { team1Name: team2, team2Name: team1 }] },
-    orderBy: { scheduledAt: 'asc' }
-  });
-  res.json({ team1, team2, matches, t1Wins: matches.filter(m => m.winner === team1).length, t2Wins: matches.filter(m => m.winner === team2).length });
-});
-
 module.exports = router;

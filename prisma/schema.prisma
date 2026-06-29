@@ -18,7 +18,7 @@ model Admin {
 model Player {
   id           String   @id @default(cuid())
   displayName  String
-  discordId    String
+  discordId    String   @unique
   riotId       String
   rank         String
   role         String

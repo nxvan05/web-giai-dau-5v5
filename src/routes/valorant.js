@@ -75,7 +75,8 @@ router.post('/lookup', async (req, res) => {
       region: data.region || reg
     });
   } catch (e) {
-    res.status(404).json({ error: e.message });
+    const isApiKeyError = e.message.includes('API key') || e.message.includes('HENRIKDEV');
+    res.status(isApiKeyError ? 500 : 404).json({ error: e.message });
   }
 });
 
