@@ -245,6 +245,7 @@
             try {
                 const data = await api('/api/players/profile/' + discordId);
                 const p = data.player;
+                lastProfileDiscordId = discordId;
                 document.getElementById('profile-name').textContent = p.displayName + ' — Hồ Sơ';
                 const avatarEl = document.getElementById('profile-modal-avatar');
                 if (p.discordAvatar) {
@@ -924,11 +925,11 @@
                 const teamName = p.teamId || '';
                 const avatarUrl = p.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + p.discordId + '/' + p.discordAvatar + '.png?size=32' : '';
                 const rankEmoji = {'Iron (Sắt)':'🥉','Bronze (Đồng)':'🥉','Silver (Bạc)':'🥈','Gold (Vàng)':'🥇','Platinum (Bạch Kim)':'💎','Diamond (Kim Cương)':'💎','Ascendant (Thượng Nhân)':'🔮','Immortal (Bất Tử)':'👑'}[rank] || '';
-                c.innerHTML += `<div class="bg-valBg/80 rounded-lg border border-gray-800 ${drafted?'opacity-50':''}">
+                c.innerHTML += `<div class="bg-valBg/80 rounded-lg border border-gray-800 ${drafted?'opacity-50':''}" data-player-discord="${p.discordId}" data-player-name="${name}" data-player-riot="${p.riotId}">
                     <div class="flex justify-between items-center p-2.5 cursor-pointer" onclick="document.getElementById('player-detail-${idx}').classList.toggle('hidden')">
                         <div class="flex items-center gap-2">
                             ${avatarUrl ? `<img src="${avatarUrl}" class="w-6 h-6 rounded-full border border-gray-700 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ">` : `<div class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] text-gray-600 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ"><i class="fa-solid fa-user"></i></div>`}
-                            <span class="bg-gray-800 text-[10px] px-1.5 rounded text-gray-300 font-bold">${p.pts}đ</span>
+                            <span class="bg-gray-800 text-[10px] px-1.5 rounded text-gray-300 font-bold" data-copy="${p.pts}đ">${p.pts}đ</span>
                             <span class="text-xs font-bold text-white cursor-pointer hover:text-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ">${name}</span>
                             <span class="text-[10px] text-gray-500 hidden sm:inline">${rankEmoji} ${rank.split(' ')[0]}</span>
                             <span class="text-[10px] text-valCyan hidden md:inline font-mono">${role.substring(0,3)}</span>
@@ -945,8 +946,8 @@
                     </div>
                     <div id="player-detail-${idx}" class="hidden px-2.5 pb-2.5 border-t border-gray-800/50 pt-2 space-y-1 text-[10px] text-gray-400">
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                            <span class="flex items-center gap-1"><span class="text-gray-500">Discord:</span> <span class="text-white" title="Discord ID">${p.discordId || 'N/A'}</span></span>
-                            <span class="flex items-center gap-1"><span class="text-gray-500">Riot:</span> <span class="text-white">${riotId}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Discord:</span> <span class="text-white cursor-pointer hover:text-valCyan" title="Double-click để copy" data-copy="${p.discordId || ''}">${p.discordId || 'N/A'}</span></span>
+                            <span class="flex items-center gap-1"><span class="text-gray-500">Riot:</span> <span class="text-white cursor-pointer hover:text-valCyan" title="Double-click để copy" data-copy="${riotId}">${riotId}</span></span>
                             <span class="flex items-center gap-1"><span class="text-gray-500">Rank:</span> <span class="text-yellow-400">${rank}</span></span>
                             <span class="flex items-center gap-1"><span class="text-gray-500">Role:</span> <span class="text-valCyan">${role}</span></span>
                             <span class="flex items-center gap-1"><span class="text-gray-500">Loại:</span> <span class="text-white">${type}</span></span>
@@ -1212,7 +1213,7 @@ async function generateSchedule() {
                 hideLoading();
                 const tbody = document.getElementById('leaderboard-body');
                 tbody.innerHTML = players.map(p =>
-                    `<tr class="border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50 transition" onclick="openProfile('${p.discordId}')">
+                    `<tr class="border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50 transition" onclick="openProfile('${p.discordId}')" data-player-discord="${p.discordId}" data-player-name="${p.displayName}">
                         <td class="py-2.5 px-3 text-center font-bold ${p.rank <= 3 ? 'text-yellow-400 text-sm' : 'text-gray-400'}">${p.rank <= 3 ? ['🥇','🥈','🥉'][p.rank-1] : '#' + p.rank}</td>
                         <td class="py-2.5 px-3 font-bold text-valCyan hover:text-white transition flex items-center gap-2">
                             ${p.discordAvatar ? `<img src="https://cdn.discordapp.com/avatars/${p.discordId}/${p.discordAvatar}.png?size=24" class="w-5 h-5 rounded-full border border-gray-700 inline-block hover:ring-2 hover:ring-valCyan transition" onerror="this.style.display='none'">` : ''}
@@ -1519,7 +1520,7 @@ async function generateSchedule() {
                     rosterEl.innerHTML = data.roster.map(r => {
                         const avatarUrl = r.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + r.discordId + '/' + r.discordAvatar + '.png?size=64' : '';
                         const canKick = isCaptain && r.discordId !== data.team.captainDiscordId;
-                        return `<div class="bg-valBg/60 border border-gray-800 p-2 rounded-lg text-center">
+                        return `<div class="bg-valBg/60 border border-gray-800 p-2 rounded-lg text-center" data-player-discord="${r.discordId}" data-player-name="${r.displayName}">
                             <div class="flex justify-center mb-1">
                                 ${avatarUrl ? `<img src="${avatarUrl}" class="w-10 h-10 rounded-full border-2 border-gray-700 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="openProfile('${r.discordId}')" title="Xem hồ sơ" onerror="this.style.display='none'">` : `<div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="openProfile('${r.discordId}')" title="Xem hồ sơ"><i class="fa-solid fa-user text-gray-600 text-sm"></i></div>`}
                             </div>
@@ -3224,6 +3225,158 @@ async function generateSchedule() {
         }
 
         // Check for OBS widget mode on page load
+        // === Tương tác ẩn & Easter Eggs ===
+        function fireConfetti(count) {
+            const canvas = document.getElementById('confetti-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            const colors = ['#ff4655','#00f2fe','#eab308','#22c55e','#a855f7','#ec4899'];
+            const pieces = [];
+            for (let i = 0; i < (count || 120); i++) {
+                pieces.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height*-1, w: Math.random()*8+3, h: Math.random()*8+3, color: colors[Math.floor(Math.random()*colors.length)], vy: Math.random()*3+2, vx: (Math.random()-0.5)*4, rot: Math.random()*360, rv: (Math.random()-0.5)*6, opacity: 1 });
+            }
+            let frames = 0;
+            function animate() {
+                if (frames > 120) { ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                for (const p of pieces) {
+                    p.y += p.vy; p.x += p.vx; p.rot += p.rv; p.vy += 0.04; p.opacity -= 0.005;
+                    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot*Math.PI/180);
+                    ctx.globalAlpha = Math.max(0, p.opacity);
+                    ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+                    ctx.restore();
+                }
+                frames++; requestAnimationFrame(animate);
+            }
+            animate();
+        }
+        function playEasterEggSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                o.connect(g); g.connect(audioCtx.destination);
+                o.frequency.value = 523.25; o.type = 'sine';
+                g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                o.start(audioCtx.currentTime); o.stop(audioCtx.currentTime + 0.5);
+                setTimeout(() => {
+                    const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
+                    o2.connect(g2); g2.connect(audioCtx.destination);
+                    o2.frequency.value = 659.25; o2.type = 'sine';
+                    g2.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                    o2.start(audioCtx.currentTime); o2.stop(audioCtx.currentTime + 0.5);
+                }, 200);
+            } catch(e) {}
+        }
+        let logoClickCount = 0; let logoTimer = null;
+        function initEasterEggs() {
+            const logo = document.getElementById('main-logo');
+            if (logo) {
+                logo.addEventListener('dblclick', function(e) {
+                    fireConfetti(80);
+                    playEasterEggSound();
+                    showToast('🎉 EVAN CUP!', 'success');
+                });
+            }
+            const twentyOne = document.querySelector('[class*="21"]');
+            document.querySelectorAll('p, span').forEach(el => {
+                if (el.textContent.includes('21') && el.textContent.includes('TRẦN')) {
+                    el.style.cursor = 'pointer';
+                    el.title = 'Giới hạn 21 điểm cho 5 người — bấm để xem luật';
+                    el.addEventListener('click', function() {
+                        showToast('🏆 Luật trần điểm: Tổng điểm 5 thành viên không được vượt quá 21 điểm để đảm bảo công bằng!', 'info', 5000);
+                    });
+                }
+            });
+        }
+        // === Context Menu ===
+        let contextTarget = null;
+        document.addEventListener('contextmenu', function(e) {
+            const playerEl = e.target.closest('[data-player-discord]');
+            if (playerEl) {
+                e.preventDefault();
+                contextTarget = {
+                    discordId: playerEl.dataset.playerDiscord,
+                    name: playerEl.dataset.playerName || 'Unknown',
+                    riotId: playerEl.dataset.playerRiot || ''
+                };
+                const menu = document.getElementById('context-menu');
+                document.getElementById('context-target-name').textContent = contextTarget.name;
+                menu.style.left = e.pageX + 'px';
+                menu.style.top = e.pageY + 'px';
+                menu.classList.remove('hidden');
+            }
+        });
+        document.addEventListener('click', function() {
+            document.getElementById('context-menu')?.classList.add('hidden');
+        });
+        function contextAction(action) {
+            document.getElementById('context-menu')?.classList.add('hidden');
+            if (!contextTarget) return;
+            if (action === 'profile') { openProfile(contextTarget.discordId); }
+            else if (action === 'copy-id') {
+                navigator.clipboard.writeText(contextTarget.discordId).then(() => showToast('Đã copy Discord ID!', 'success')).catch(() => {});
+            } else if (action === 'copy-riot') {
+                navigator.clipboard.writeText(contextTarget.riotId || contextTarget.discordId).then(() => showToast('Đã copy Riot ID!', 'success')).catch(() => {});
+            }
+            contextTarget = null;
+        }
+        // === Phím tắt ===
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                ['profile-modal','team-modal','profile-edit-modal','help-modal','score-report-modal','score-modal','dispute-modal','result-modal','discord-guide-modal'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && !el.classList.contains('hidden')) el.classList.add('hidden');
+                });
+            }
+            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                const tabs = ['guide-tab','register-tab','teams-tab','admin-tab','schedule-tab','veto-tab','leaderboard-tab','bracket-tab','stream-tab'];
+                const num = parseInt(e.key);
+                if (num >= 1 && num <= 9) {
+                    const tab = tabs[num-1];
+                    if (tab && document.getElementById('btn-' + tab)) { switchTab(tab); }
+                }
+            }
+        });
+        // === Copy on double-click ===
+        document.addEventListener('dblclick', function(e) {
+            const el = e.target.closest('[data-copy]');
+            if (el) {
+                navigator.clipboard.writeText(el.dataset.copy).then(() => { showToast('Đã copy: ' + el.dataset.copy, 'success'); }).catch(() => {});
+            }
+        });
+        // === Load H2H ===
+        async function loadH2H() {
+            const opponentId = document.getElementById('h2h-opponent')?.value?.trim();
+            const resultDiv = document.getElementById('h2h-result');
+            if (!opponentId || !lastProfileDiscordId) { resultDiv.innerHTML = '<p class="text-gray-500 text-xs">Nhập Discord ID đối thủ</p>'; return; }
+            resultDiv.innerHTML = '<p class="text-gray-400 text-xs"><i class="fa-solid fa-spinner animate-spin mr-1"></i>Đang so sánh...</p>';
+            try {
+                const data = await api('/api/matches/h2h/' + lastProfileDiscordId + '/' + opponentId);
+                if (data.matches.length === 0) {
+                    resultDiv.innerHTML = '<p class="text-gray-500 text-xs">Chưa có trận đối đầu nào</p>';
+                    return;
+                }
+                let html = '<div class="flex items-center justify-between bg-valCard border border-gray-800 p-2 rounded-lg mb-2 text-xs">';
+                html += '<span class="font-bold text-valCyan">' + data.p1.displayName + ': ' + data.p1.wins + ' thắng</span>';
+                html += '<span class="text-gray-500">vs</span>';
+                html += '<span class="font-bold text-valCyan">' + data.p2.displayName + ': ' + data.p2.wins + ' thắng</span>';
+                html += '</div>';
+                html += '<div class="space-y-1 max-h-32 overflow-y-auto">';
+                data.matches.forEach(m => {
+                    const date = m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString('vi-VN') : '';
+                    html += '<div class="flex items-center justify-between bg-valBg/40 border border-gray-800 p-1.5 rounded text-[10px]"><span class="text-gray-400">' + date + '</span><span class="font-mono font-bold ' + (m.p1Win ? 'text-emerald-400' : 'text-red-400') + '">' + m.p1Score + ' - ' + m.p2Score + '</span><span class="text-gray-500">' + (m.map || '') + '</span></div>';
+                });
+                html += '</div>';
+                resultDiv.innerHTML = html;
+            } catch(e) {
+                resultDiv.innerHTML = '<p class="text-red-400 text-xs">' + e.message + '</p>';
+            }
+        }
+        let lastProfileDiscordId = null;
+
         document.addEventListener('DOMContentLoaded', function() {
             checkDiscordAuth();
             const params = new URLSearchParams(window.location.search);
@@ -3261,6 +3414,7 @@ async function generateSchedule() {
             const teamInput = document.getElementById('dashboard-team-name');
             if (teamInput) teamInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') lookupTeam(); });
             initNotifications();
+            initEasterEggs();
         });
 
         // === Notification Center ===

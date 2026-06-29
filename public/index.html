@@ -83,6 +83,13 @@
     </style>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        .context-item { width: 100%; text-align: left; padding: 6px 12px; font-size: 11px; color: #d1d5db; background: transparent; display: flex; align-items: center; gap: 6px; border: none; cursor: pointer; transition: 0.15s; }
+        .context-item:hover { background: rgba(0,242,254,0.1); color: #00f2fe; }
+        .context-item i { width: 14px; }
+        .glow-red { box-shadow: 0 0 20px rgba(255,70,85,0.15); }
+        .glow-red:hover { box-shadow: 0 0 30px rgba(255,70,85,0.25); }
+    </style>
 </head>
 <body class="bg-valBg text-gray-200 min-h-screen font-sans antialiased selection:bg-valRed selection:text-white cyber-bg-glow">
 
@@ -1994,6 +2001,15 @@
             </div>
         </div>
     </div>
+</div>
+
+<canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-[99999]"></canvas>
+
+<div id="context-menu" class="fixed z-[99999] bg-valCard border border-gray-700 rounded-xl shadow-2xl py-1 min-w-[180px] hidden">
+    <div class="px-3 py-1.5 text-[9px] text-gray-500 uppercase font-bold border-b border-gray-800" id="context-target-name"></div>
+    <button class="context-item" onclick="contextAction('profile')"><i class="fa-solid fa-user text-valCyan w-4"></i> Xem hồ sơ</button>
+    <button class="context-item" onclick="contextAction('copy-id')"><i class="fa-solid fa-copy text-gray-400 w-4"></i> Copy Discord ID</button>
+    <button class="context-item" onclick="contextAction('copy-riot')"><i class="fa-solid fa-copy text-yellow-400 w-4"></i> Copy Riot ID</button>
 </div>
 
 <!-- Score Report Modal -->

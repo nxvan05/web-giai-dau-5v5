@@ -249,6 +249,51 @@ router.get('/player/:discordId', async (req, res) => {
   res.json(matches.map(m => ({ ...m, isTeam1: m.team1Name === (player.teamId || ''), result: m.winner ? (m.winner === (player.teamId || '') ? 'win' : 'loss') : 'pending' })));
 });
 
+// H2H: compare two players' match history
+router.get('/h2h/:discordId1/:discordId2', async (req, res) => {
+  try {
+    const { discordId1, discordId2 } = req.params;
+    const [p1, p2] = await Promise.all([
+      prisma.player.findFirst({ where: { discordId: discordId1 } }),
+      prisma.player.findFirst({ where: { discordId: discordId2 } })
+    ]);
+    if (!p1 || !p2) return res.status(404).json({ error: 'Player not found' });
+    const matches1 = await prisma.match.findMany({
+      where: {
+        OR: [{ team1Name: p1.teamId || '' }, { team2Name: p1.teamId || '' }],
+        status: 'completed'
+      },
+      orderBy: { scheduledAt: 'desc' }, take: 50
+    });
+    const matches2 = await prisma.match.findMany({
+      where: {
+        OR: [{ team1Name: p2.teamId || '' }, { team2Name: p2.teamId || '' }],
+        status: 'completed'
+      },
+      orderBy: { scheduledAt: 'desc' }, take: 50
+    });
+    // Find common matches where both players' teams faced each other
+    const common = [];
+    for (const m1 of matches1) {
+      const m2 = matches2.find(m => m.id === m1.id);
+      if (m2) {
+        if ((m1.team1Name === p1.teamId && m1.team2Name === p2.teamId) || (m1.team2Name === p1.teamId && m1.team1Name === p2.teamId)) {
+          const isTeam1P1 = m1.team1Name === p1.teamId;
+          common.push({
+            id: m1.id, score1: m1.score1, score2: m1.score2, map: m1.map, status: m1.status, scheduledAt: m1.scheduledAt,
+            p1Win: m1.winner === p1.teamId, p2Win: m1.winner === p2.teamId,
+            p1Score: isTeam1P1 ? m1.score1 : m1.score2,
+            p2Score: isTeam1P1 ? m1.score2 : m1.score1
+          });
+        }
+      }
+    }
+    const p1Wins = common.filter(m => m.p1Win).length;
+    const p2Wins = common.filter(m => m.p2Win).length;
+    res.json({ p1: { displayName: p1.displayName, discordId: p1.discordId, wins: p1Wins, elo: p1.elo }, p2: { displayName: p2.displayName, discordId: p2.discordId, wins: p2Wins, elo: p2.elo }, matches: common });
+  } catch (e) { next(e); }
+});
+
 router.get('/:id/detail', async (req, res, next) => {
   try {
     const match = await prisma.match.findUnique({ where: { id: req.params.id } });
