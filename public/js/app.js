@@ -3271,6 +3271,100 @@ async function generateSchedule() {
             } catch(e) {}
         }
         let logoClickCount = 0; let logoTimer = null;
+        let rainbowInterval = null;
+        function toggleRainbow(enable) {
+            const header = document.querySelector('header');
+            if (!header) return;
+            if (enable) {
+                if (rainbowInterval) return;
+                let hue = 0;
+                rainbowInterval = setInterval(() => {
+                    header.style.borderBottomColor = 'hsl(' + hue + ', 100%, 50%)';
+                    header.style.borderBottomWidth = '3px';
+                    hue = (hue + 2) % 360;
+                }, 30);
+                showToast('🌈 Konami Code activated! Rainbow mode ON', 'success', 3000);
+            } else {
+                if (rainbowInterval) { clearInterval(rainbowInterval); rainbowInterval = null; }
+                header.style.borderBottomColor = '';
+                header.style.borderBottomWidth = '';
+            }
+        }
+        // Konami Code: ↑↑↓↓←→←→BA
+        let konamiBuffer = [];
+        const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+        // Key sequence "evan"
+        let evanBuffer = [];
+        document.addEventListener('keydown', function(e) {
+            konamiBuffer.push(e.key);
+            if (konamiBuffer.length > KONAMI.length) konamiBuffer.shift();
+            if (konamiBuffer.length === KONAMI.length && konamiBuffer.every((k,i) => k === KONAMI[i])) {
+                toggleRainbow(true);
+                fireConfetti(150);
+                playEasterEggSound();
+                konamiBuffer = [];
+            }
+            evanBuffer.push(e.key.toLowerCase());
+            if (evanBuffer.length > 4) evanBuffer.shift();
+            if (evanBuffer.join('') === 'evan') {
+                fireConfetti(60);
+                playEasterEggSound();
+                showToast('🎉 EVAN!', 'success', 2000);
+                evanBuffer = [];
+            }
+        });
+        // Secret console commands
+        window.evan = {
+            help: function() { console.log('%c🎮 EVAN CUP SECRETS','font-size:18px;color:#ff4655;font-weight:bold'); console.log('%cevan.rainbow() %c- Toggle rainbow mode','color:#00f2fe','color:#888'); console.log('%cevan.confetti() %c- Fire confetti','color:#00f2fe','color:#888'); console.log('%cevan.party() %c- Full party mode','color:#00f2fe','color:#888'); console.log('%cevan.whoami() %c- Current user info','color:#00f2fe','color:#888'); },
+            rainbow: function() { toggleRainbow(!rainbowInterval); },
+            confetti: function() { fireConfetti(100); playEasterEggSound(); },
+            party: function() { toggleRainbow(true); fireConfetti(200); playEasterEggSound(); setInterval(() => fireConfetti(50), 2000); showToast('🎊 PARTY MODE!','success'); },
+            whoami: function() { console.log('%c👤 Current User:','font-weight:bold', discordUser || 'Not logged in'); },
+            version: '1.0-easter'
+        };
+        // Click 7 lần vào admin empty area
+        let adminClickCount = 0; let adminClickTimer = null;
+        function initAdminEasterEgg() {
+            const adminSection = document.getElementById('admin-tab');
+            if (!adminSection) return;
+            adminSection.addEventListener('click', function(e) {
+                if (e.target === adminSection || e.target.closest('.bg-valCard') === null && e.target.closest('#admin-sub-players') === null) {
+                    adminClickCount++;
+                    if (adminClickTimer) clearTimeout(adminClickTimer);
+                    adminClickTimer = setTimeout(() => { adminClickCount = 0; }, 3000);
+                    if (adminClickCount === 7) {
+                        adminClickCount = 0;
+                        showToast('🕵️ Bạn tìm gì ở đây thế? Admin menu có nhiều bí mật lắm!', 'info', 5000);
+                        fireConfetti(40);
+                    }
+                }
+            });
+        }
+        // Particles theo chuột
+        let particleCtx = null; let particleCanvas = null;
+        function initParticles() {
+            const adminSub = document.getElementById('admin-sub-players');
+            if (!adminSub) return;
+            particleCanvas = document.getElementById('confetti-canvas');
+            if (!particleCanvas) return;
+            adminSub.addEventListener('mousemove', function(e) {
+                if (Math.random() > 0.3) return;
+                const rect = adminSub.getBoundingClientRect();
+                const x = e.clientX, y = e.clientY;
+                const colors = ['rgba(0,242,254,0.5)','rgba(255,70,85,0.4)','rgba(234,179,8,0.4)'];
+                const p = { x, y, vx: (Math.random()-0.5)*2, vy: -Math.random()*2-1, size: Math.random()*2.5+1, color: colors[Math.floor(Math.random()*colors.length)], life: 1 };
+                const d = 0.02;
+                function animParticle() { if (!particleCanvas) return;
+                    const ctx = particleCanvas.getContext('2d');
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+                    ctx.globalAlpha = 1;
+                    p.x += p.vx; p.y += p.vy; p.life -= d;
+                    if (p.life > 0) requestAnimationFrame(animParticle);
+                }
+                animParticle();
+            });
+        }
         function initEasterEggs() {
             const logo = document.getElementById('main-logo');
             if (logo) {
@@ -3280,16 +3374,43 @@ async function generateSchedule() {
                     showToast('🎉 EVAN CUP!', 'success');
                 });
             }
-            const twentyOne = document.querySelector('[class*="21"]');
             document.querySelectorAll('p, span').forEach(el => {
                 if (el.textContent.includes('21') && el.textContent.includes('TRẦN')) {
                     el.style.cursor = 'pointer';
                     el.title = 'Giới hạn 21 điểm cho 5 người — bấm để xem luật';
                     el.addEventListener('click', function() {
-                        showToast('🏆 Luật trần điểm: Tổng điểm 5 thành viên không được vượt quá 21 điểm để đảm bảo công bằng!', 'info', 5000);
+                        showToast('🏆 Luật trần điểm: Tổng điểm 5 thành viên không được vượt quá 21 điểm!', 'info', 5000);
                     });
                 }
             });
+            // Triple-click "make u feel better"
+            document.querySelectorAll('span').forEach(el => {
+                if (el.textContent.includes('make u feel better')) {
+                    let clickCount = 0; let clickTimer = null;
+                    el.style.cursor = 'pointer';
+                    el.title = '👀';
+                    el.addEventListener('click', function() {
+                        clickCount++;
+                        if (clickTimer) clearTimeout(clickTimer);
+                        clickTimer = setTimeout(() => { clickCount = 0; }, 2000);
+                        if (clickCount >= 3) {
+                            clickCount = 0;
+                            let hue = 0;
+                            const interval = setInterval(() => {
+                                el.style.color = 'hsl(' + hue + ', 100%, 65%)';
+                                hue = (hue + 5) % 360;
+                            }, 50);
+                            setTimeout(() => { clearInterval(interval); el.style.color = ''; }, 3000);
+                            fireConfetti(50);
+                            playEasterEggSound();
+                            showToast('🌈 You make me feel better too!', 'success', 3000);
+                        }
+                    });
+                }
+            });
+            initAdminEasterEgg();
+            initParticles();
+            console.log('%c🎮 Evan Cup loaded. Type %cevan.help() %cfor secrets!', 'color:#888', 'color:#00f2fe;font-weight:bold', 'color:#888');
         }
         // === Context Menu ===
         let contextTarget = null;
