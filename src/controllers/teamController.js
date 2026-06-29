@@ -2,6 +2,7 @@ const prisma = require('../utils/prisma');
 const { getIO } = require('../utils/socket');
 const { notifyPlayerRegistered } = require('./webhookController');
 const { logAction } = require('../utils/audit');
+const containsProfanity = require('../utils/profanity');
 
 exports.getTeams = async (req, res) => {
   const team1 = await prisma.setting.findUnique({ where: { key: 'team1' } });
@@ -40,6 +41,7 @@ exports.createTeam = async (req, res, next) => {
     if (!name || !rosterDiscordIds || rosterDiscordIds.length !== 5) {
       return res.status(400).json({ error: 'Cần tên đội + 5 thành viên' });
     }
+    if (containsProfanity(name)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
     const existing = await prisma.team.findUnique({ where: { name } });
     if (existing) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
     const team = await prisma.team.create({

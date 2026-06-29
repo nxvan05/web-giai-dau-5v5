@@ -6,6 +6,7 @@ const { getTeams, updateTeams, listAll, createTeam, approveTeam, rejectTeam, sav
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
 const prisma = require('../utils/prisma');
+const containsProfanity = require('../utils/profanity');
 
 // Old auto-draft routes (auth required)
 router.get('/', auth, getTeams);
@@ -19,6 +20,7 @@ router.post('/create-from-registration', async (req, res, next) => {
   try {
     const { name, discordId, displayName, pts, type } = req.body;
     if (!name || !discordId) return res.status(400).json({ error: 'Thiếu tên đội hoặc Discord ID' });
+    if (containsProfanity(name)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
     const existing = await prisma.team.findUnique({ where: { name } });
     if (existing) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
     const teamPts = pts || 0;
@@ -97,6 +99,7 @@ router.put('/:name/rename', async (req, res, next) => {
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
     if (team.captainDiscordId !== discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới đổi tên được' });
+    if (containsProfanity(newName)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
     const nameExists = await prisma.team.findUnique({ where: { name: newName } });
     if (nameExists && nameExists.id !== team.id) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
     await prisma.team.update({ where: { id: team.id }, data: { name: newName } });

@@ -1,6 +1,7 @@
         const API = window.location.origin;
         let apiToken = localStorage.getItem('evan_api_token');
         let apiPlayerCache = [];
+        let lastRiotLookup = null;
 
         async function api(endpoint, opts = {}) {
           const headers = { 'Content-Type': 'application/json' };
@@ -242,19 +243,21 @@
             document.getElementById('profile-modal').classList.remove('hidden');
             document.getElementById('profile-name').textContent = 'Đang tải...';
             try {
-                const data = await api('/api/players/' + discordId + '/profile');
+                const data = await api('/api/players/profile/' + discordId);
                 const p = data.player;
                 document.getElementById('profile-name').textContent = p.displayName + ' — Hồ Sơ';
 
                 // Info
+                const teamName = data.team ? data.team.name : p.teamId || 'Tự do';
                 document.getElementById('profile-info').innerHTML =
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Discord ID</span><span class="text-white font-bold">' + (p.discordId || '—') + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Rank</span><span class="text-white font-bold">' + (p.rank || '—') + '</span></div>' +
+                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Peak Rank</span><span class="text-yellow-400 font-bold">' + (p.peakRank || p.rank || '—') + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Elo</span><span class="text-yellow-400 font-bold text-base">' + p.elo + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Vai trò</span><span class="text-white font-bold">' + (p.role || '—') + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">W / L</span><span class="text-emerald-400 font-bold">' + p.wins + '</span><span class="text-gray-500 mx-1">/</span><span class="text-red-400 font-bold">' + p.losses + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">MVP</span><span class="text-yellow-400 font-bold text-base">' + p.mvps + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Đội</span><span class="text-valCyan font-bold">' + (p.teamId || 'Tự do') + '</span></div>' +
+                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Đội</span><span class="text-valCyan font-bold">' + teamName + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">KDA</span><span class="text-white font-bold">' + data.kda.kills + ' / ' + data.kda.deaths + ' / ' + data.kda.assists + '</span></div>';
 
                 // Charts
@@ -681,79 +684,39 @@
             document.getElementById('discord-guide-modal').classList.remove('hidden');
         }
         function updateFormPoints() {
-            const t = document.getElementById('reg-type').value;
-            let pts = rankPointsMap[document.getElementById('reg-rank').value] || 0;
-            if(t === 'Duo') pts += rankPointsMap[document.getElementById('t1-rank').value] || 0;
-            if(t === 'Trio') pts += (rankPointsMap[document.getElementById('t1-rank').value] || 0) + (rankPointsMap[document.getElementById('t2-rank').value] || 0);
-            
-            const limit = t === 'Duo' ? 9 : t === 'Trio' ? 13 : 8;
+            const pts = rankPointsMap[document.getElementById('reg-rank').value] || 0;
             document.getElementById('form-points-badge').innerText = pts + 'đ';
-            document.getElementById('form-points-badge').className = `text-2xl font-black font-mono px-4 py-1.5 rounded-lg ${pts > limit ? 'text-valRed bg-valRed/10 border border-valRed/30 animate-pulse' : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'}`;
-            document.getElementById('form-points-rules').textContent = '(Giới hạn: Solo ≤8đ · Duo ≤9đ · Trio ≤13đ — Cả đội 5 người ≤21đ)';
         }
 
-        function toggleTeamInputs() {
-            const t = document.getElementById('reg-type').value;
-            const div = document.getElementById('teammate-fields');
-            if(t === 'Solo') { div.innerHTML = ''; div.classList.add('hidden'); }
-            else {
-                div.classList.remove('hidden');
-                let h = `<h4 class="text-[11px] font-bold text-valCyan uppercase border-b border-gray-800 pb-2"><i class="fa-solid fa-users"></i> Thông Tin Nhóm</h4>`;
-                h += getTeammateHTML(1);
-                if(t === 'Trio') h += getTeammateHTML(2);
-                div.innerHTML = h;
+        function toggleTeamNameInput() {
+            const val = document.getElementById('reg-team-option').value;
+            const field = document.getElementById('reg-team-name-field');
+            const input = document.getElementById('reg-team-name');
+            if (val === 'create') {
+                field.classList.remove('hidden');
+                input.required = true;
+            } else {
+                field.classList.add('hidden');
+                input.required = false;
+                input.value = '';
             }
-            updateFormPoints();
-        }
-
-        function getTeammateHTML(num) {
-            return `<div class="grid grid-cols-2 gap-3 mt-3">
-                <div><label class="block text-[10px] text-gray-400 uppercase mb-1">Riot ID Đồng Đội ${num}</label><input type="text" class="w-full bg-valBg border border-gray-800 rounded px-2 py-1.5 text-xs text-white outline-none"></div>
-                <div><label class="block text-[10px] text-gray-400 uppercase mb-1">Rank Đồng Đội ${num}</label><select id="t${num}-rank" onchange="updateFormPoints()" class="w-full bg-valBg border border-gray-800 rounded px-2 py-1.5 text-xs text-white outline-none"><option value="Iron (Sắt)">Iron (Sắt) — 1đ</option><option value="Bronze (Đồng)">Bronze (Đồng) — 2đ</option><option value="Silver (Bạc)">Silver (Bạc) — 3đ</option><option value="Gold (Vàng)" selected>Gold (Vàng) — 4đ</option><option value="Platinum (Bạch Kim)">Platinum (Bạch Kim) — 5đ</option><option value="Diamond (Kim Cương)">Diamond (Kim Cương) — 6đ</option><option value="Ascendant (Thượng Nhân)">Ascendant (Thượng Nhân) — 7đ</option><option value="Immortal (Bất Tử)">Immortal (Bất Tử) — 8đ</option></select></div>
-            </div>`;
         }
 
         async function autoFillRegisterForm() {
             const status = document.getElementById('register-discord-status');
             const discordInput = document.getElementById('reg-discord');
             const discordIdInput = document.getElementById('reg-discord-id');
-            const helpIcon = document.getElementById('reg-discord-id-help');
             const submitBtn = document.getElementById('reg-submit-btn');
-            const editSection = document.getElementById('player-edit-section');
 
-            discordInput.disabled = false;
-            discordInput.required = true;
-            discordInput.classList.remove('opacity-60', 'cursor-not-allowed');
-            discordIdInput.disabled = false;
-            discordIdInput.required = true;
-            discordIdInput.classList.remove('opacity-60', 'cursor-not-allowed');
-            if (helpIcon) helpIcon.classList.remove('hidden');
             status.classList.add('hidden');
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class=\"fa-solid fa-paper-plane mr-2\"></i>Gửi Đơn Lên Phòng Duyệt';
-            if (editSection) {
-                editSection.classList.remove('hidden');
-                const editNotice = document.getElementById('edit-discord-notice');
-                const editForm = document.getElementById('edit-player-form');
-                const editSearchRow = editSection.querySelector('.flex.gap-2');
-                if (discordUser) {
-                    document.getElementById('edit-discord-id').value = discordUser.discordId;
-                    document.getElementById('edit-discord-id').disabled = true;
-                    if (editNotice) editNotice.classList.add('hidden');
-                    if (editSearchRow) editSearchRow.classList.remove('hidden');
-                    if (editForm) editForm.classList.remove('hidden');
-                } else {
-                    document.getElementById('edit-discord-id').value = '';
-                    document.getElementById('edit-discord-id').disabled = false;
-                    if (editNotice) editNotice.classList.remove('hidden');
-                    if (editSearchRow) editSearchRow.classList.add('hidden');
-                    if (editForm) editForm.classList.add('hidden');
-                }
-            }
+            submitBtn.innerHTML = '<i class=\"fa-solid fa-paper-plane mr-2\"></i>Gửi Đơn';
 
             if (!discordUser) {
+                discordInput.value = '';
+                discordIdInput.value = '';
                 status.className = 'mb-4 p-4 rounded-xl border text-sm bg-yellow-500/10 border-yellow-500/30 text-yellow-300';
-                status.innerHTML = '<div class="flex items-center gap-3"><i class="fa-solid fa-shield-halved text-xl"></i><div><strong class="block">Cần đăng nhập Discord</strong><span class="text-xs text-yellow-400/80">Bấm nút <b class="text-white">Đăng Nhập</b> góc phải trên cùng để xác minh, sau đó mới gửi được đơn.</span></div></div>';
+                status.innerHTML = '<div class="flex items-center gap-3"><i class="fa-solid fa-shield-halved text-xl"></i><div><strong class="block">Cần đăng nhập Discord</strong><span class="text-xs text-yellow-400/80">Bấm nút <b class="text-white">Đăng Nhập</b> góc phải trên cùng.</span></div></div>';
                 status.classList.remove('hidden');
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fa-brands fa-discord mr-2"></i>Đăng Nhập Discord Trước';
@@ -764,19 +727,10 @@
 
             discordInput.value = discordUser.discordUsername;
             discordIdInput.value = discordUser.discordId;
-            discordInput.disabled = true;
-            discordInput.required = false;
-            discordInput.classList.add('opacity-60', 'cursor-not-allowed');
-            discordIdInput.disabled = true;
-            discordIdInput.required = false;
-            discordIdInput.classList.add('opacity-60', 'cursor-not-allowed');
-            if (helpIcon) helpIcon.classList.add('hidden');
 
-            // show Discord avatar
             const ava = document.getElementById('reg-discord-avatar');
             if (ava && discordUser.discordAvatar) {
                 ava.src = 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png?size=64';
-                ava.classList.remove('hidden');
             }
 
             try {
@@ -802,6 +756,7 @@
             resultEl.classList.remove('hidden');
             try {
                 const data = await api('/api/valorant/lookup', { method: 'POST', body: { riotId, region: 'ap' } });
+                lastRiotLookup = data;
                 const rankSelect = document.getElementById('reg-rank');
                 for (let opt of rankSelect.options) {
                     if (opt.value === data.rank) { rankSelect.value = data.rank; break; }
@@ -809,7 +764,6 @@
                 rankSelect.disabled = true;
                 rankSelect.classList.add('opacity-60', 'cursor-not-allowed');
                 updateFormPoints();
-                const peakLabel = data.peakRank ? `Peak: ${data.peakRank} · Current: ${data.currentRank}` : data.currentRank;
                 resultEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-lock mr-1"></i>${data.rank} · ${data.elo} elo · ${data.pts}đ <span class="text-gray-500">(Peak: ${data.peakRank || data.rank})</span></span>`;
             } catch(e) {
                 resultEl.innerHTML = `<span class="text-valRed"><i class="fa-solid fa-circle-exclamation mr-1"></i>${e.message}</span>`;
@@ -831,43 +785,36 @@
         });
         async function handleRegistration(e) {
             e.preventDefault();
-            const discordName = discordUser ? discordUser.discordUsername : document.getElementById('reg-discord').value;
-            const discordId = discordUser ? discordUser.discordId : document.getElementById('reg-discord-id').value;
-            const d = { 
-                discord: discordName,
-                discordId: discordId,
-                id: document.getElementById('reg-riotid').value,
+            if (!discordUser) { showToast('Vui lòng đăng nhập Discord trước!', 'error'); return; }
+            const teamOption = document.getElementById('reg-team-option').value;
+            const teamName = document.getElementById('reg-team-name').value.trim();
+            if (teamOption === 'create' && !teamName) { showToast('Vui lòng nhập tên đội!', 'error'); return; }
+            const playerPts = parseInt(document.getElementById('form-points-badge').innerText) || 3;
+            const body = {
+                displayName: discordUser.discordUsername,
+                discordId: discordUser.discordId,
+                riotId: document.getElementById('reg-riotid').value.trim(),
                 rank: document.getElementById('reg-rank').value,
                 role: document.getElementById('reg-role').value,
-                type: document.getElementById('reg-type').value,
-                pts: parseInt(document.getElementById('form-points-badge').innerText) || 3
-            };
-            const body = {
-                displayName: d.discord,
-                discordId: d.discordId,
-                riotId: d.id,
-                rank: d.rank,
-                role: d.role,
-                type: d.type,
-                pts: d.pts
+                type: 'Solo',
+                pts: playerPts,
+                peakRank: lastRiotLookup?.peakRank || null
             };
             try {
                 const player = await api('/api/players', { method: 'POST', body });
-                if (d.type === 'Duo' || d.type === 'Trio') {
-                    const teamType = d.type.toLowerCase();
-                    const teamName = d.type === 'Duo' ? `Đội của ${d.discord}` : `Team của ${d.discord}`;
-                    const teamPts = d.pts;
+                if (teamOption === 'create' && teamName) {
                     await api('/api/teams/create-from-registration', { method: 'POST', body: {
                         name: teamName,
-                        discordId: d.discordId,
-                        displayName: d.discord,
-                        pts: teamPts,
-                        type: teamType
+                        discordId: discordUser.discordId,
+                        displayName: discordUser.discordUsername,
+                        pts: playerPts,
+                        type: 'duo'
                     }});
                 }
                 showToast('Đăng ký thành công!', 'success');
                 document.getElementById('registration-form').reset();
                 document.getElementById('form-points-badge').innerText = '3';
+                document.getElementById('reg-team-name-field').classList.add('hidden');
                 autoFillRegisterForm();
                 loadTeamsBrowser();
             } catch(e) {

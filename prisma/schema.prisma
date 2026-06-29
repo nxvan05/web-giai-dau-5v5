@@ -23,13 +23,14 @@ model Player {
   rank         String
   role         String
   type         String
-  pts          Int      @default(0)
-  elo          Int      @default(1200)
-  wins         Int      @default(0)
-  losses       Int      @default(0)
-  mvps         Int      @default(0)
-  teamId       String?
-  createdAt    DateTime @default(now())
+  pts           Int      @default(0)
+  elo           Int      @default(1200)
+  peakRank      String?
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  mvps          Int      @default(0)
+  teamId        String?
+  createdAt     DateTime @default(now())
 }
 
 model Match {

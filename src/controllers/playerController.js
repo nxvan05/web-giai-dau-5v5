@@ -15,7 +15,7 @@ exports.create = async (req, res) => {
   if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
   // admin auth: use body.discordId; discord auth: use JWT
   const discordId = req.discordUser ? req.discordUser.discordId : req.body.discordId;
-  const { displayName, riotId, rank, role, type, pts } = req.body;
+  const { displayName, riotId, rank, role, type, pts, peakRank } = req.body;
 
   if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
 
@@ -25,6 +25,7 @@ exports.create = async (req, res) => {
   const data = {
     displayName, discordId, riotId, rank, role, type, pts: parseInt(pts) || 0
   };
+  if (peakRank) data.peakRank = peakRank;
 
   const player = await prisma.player.create({ data });
   notifyPlayerRegistered(player).catch(err => log.error('Caught error', { error: err.message }));
@@ -115,6 +116,8 @@ exports.getProfile = async (req, res, next) => {
       orderBy: { createdAt: 'asc' }
     });
 
-    res.json({ player, matchHistory, eloHistory, kda: { kills: stats._sum.kills || 0, deaths: stats._sum.deaths || 0, assists: stats._sum.assists || 0 } });
+    const team = player.teamId ? await prisma.team.findUnique({ where: { name: player.teamId } }) : null;
+
+    res.json({ player, team, matchHistory, eloHistory, kda: { kills: stats._sum.kills || 0, deaths: stats._sum.deaths || 0, assists: stats._sum.assists || 0 } });
   } catch (e) { next(e); }
 };
