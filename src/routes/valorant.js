@@ -44,6 +44,10 @@ function henrikRequest(path) {
   });
 }
 
+router.get('/lookup', (req, res) => {
+  res.json({ status: 'ok', message: 'Valorant lookup route is working. Use POST with { riotId: "Name#Tag" }' });
+});
+
 router.post('/lookup', async (req, res) => {
   try {
     const { riotId, region } = req.body;
