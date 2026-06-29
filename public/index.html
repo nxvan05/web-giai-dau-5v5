@@ -1410,8 +1410,8 @@
     <!-- Profile Modal -->
     <div id="profile-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4 hidden">
         <div class="bg-valCard border border-gray-800 max-w-2xl w-full rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div class="sticky top-0 bg-valCard z-10 flex items-center gap-2 p-4 border-b border-gray-800">
-                <i class="fa-solid fa-user text-valCyan text-xl"></i>
+            <div class="sticky top-0 bg-valCard z-10 flex items-center gap-3 p-4 border-b border-gray-800">
+                <img id="profile-modal-avatar" src="" class="w-10 h-10 rounded-full border-2 border-valCyan/50 hidden">
                 <h3 class="font-display text-lg font-bold text-white uppercase" id="profile-name">Hồ Sơ</h3>
                 <button onclick="closeProfile()" class="ml-auto text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -1932,6 +1932,7 @@
             <div>
                 <label class="text-[10px] text-gray-400 uppercase block mb-1">Rank</label>
                 <select id="pe-rank" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-400"></select>
+                <p id="pe-rank-lock-notice" class="hidden text-[9px] text-emerald-400 mt-1 flex items-center gap-1"><i class="fa-solid fa-lock"></i> Rank đã được tra cứu tự động từ Riot ID, không thể chỉnh sửa</p>
             </div>
             <div>
                 <label class="text-[10px] text-gray-400 uppercase block mb-1">Vai trò</label>

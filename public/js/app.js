@@ -246,6 +246,13 @@
                 const data = await api('/api/players/profile/' + discordId);
                 const p = data.player;
                 document.getElementById('profile-name').textContent = p.displayName + ' — Hồ Sơ';
+                const avatarEl = document.getElementById('profile-modal-avatar');
+                if (p.discordAvatar) {
+                    avatarEl.src = 'https://cdn.discordapp.com/avatars/' + p.discordId + '/' + p.discordAvatar + '.png?size=64';
+                    avatarEl.classList.remove('hidden');
+                } else {
+                    avatarEl.classList.add('hidden');
+                }
 
                 // Info
                 const teamName = data.team ? data.team.name : p.teamId || 'Tự do';
@@ -920,9 +927,9 @@
                 c.innerHTML += `<div class="bg-valBg/80 rounded-lg border border-gray-800 ${drafted?'opacity-50':''}">
                     <div class="flex justify-between items-center p-2.5 cursor-pointer" onclick="document.getElementById('player-detail-${idx}').classList.toggle('hidden')">
                         <div class="flex items-center gap-2">
-                            ${avatarUrl ? `<img src="${avatarUrl}" class="w-6 h-6 rounded-full border border-gray-700" onerror="this.style.display='none'">` : `<div class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] text-gray-600"><i class="fa-solid fa-user"></i></div>`}
+                            ${avatarUrl ? `<img src="${avatarUrl}" class="w-6 h-6 rounded-full border border-gray-700 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ">` : `<div class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] text-gray-600 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ"><i class="fa-solid fa-user"></i></div>`}
                             <span class="bg-gray-800 text-[10px] px-1.5 rounded text-gray-300 font-bold">${p.pts}đ</span>
-                            <span class="text-xs font-bold text-white">${name}</span>
+                            <span class="text-xs font-bold text-white cursor-pointer hover:text-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ">${name}</span>
                             <span class="text-[10px] text-gray-500 hidden sm:inline">${rankEmoji} ${rank.split(' ')[0]}</span>
                             <span class="text-[10px] text-valCyan hidden md:inline font-mono">${role.substring(0,3)}</span>
                             <span class="text-[10px] text-gray-500 hidden md:inline">W${p.wins||0}/L${p.losses||0}</span>
@@ -1205,9 +1212,12 @@ async function generateSchedule() {
                 hideLoading();
                 const tbody = document.getElementById('leaderboard-body');
                 tbody.innerHTML = players.map(p =>
-                    `<tr class="border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50" onclick="openProfile(${JSON.stringify(p.discordId)})">
+                    `<tr class="border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50 transition" onclick="openProfile('${p.discordId}')">
                         <td class="py-2.5 px-3 text-center font-bold ${p.rank <= 3 ? 'text-yellow-400 text-sm' : 'text-gray-400'}">${p.rank <= 3 ? ['🥇','🥈','🥉'][p.rank-1] : '#' + p.rank}</td>
-                        <td class="py-2.5 px-3 font-bold text-valCyan hover:text-white transition">${p.displayName}</td>
+                        <td class="py-2.5 px-3 font-bold text-valCyan hover:text-white transition flex items-center gap-2">
+                            ${p.discordAvatar ? `<img src="https://cdn.discordapp.com/avatars/${p.discordId}/${p.discordAvatar}.png?size=24" class="w-5 h-5 rounded-full border border-gray-700 inline-block hover:ring-2 hover:ring-valCyan transition" onerror="this.style.display='none'">` : ''}
+                            ${p.displayName}
+                        </td>
                         <td class="py-2.5 px-3 text-center text-yellow-400 font-bold font-mono">${p.elo}</td>
                         <td class="py-2.5 px-3 text-center text-gray-300">${p.rankName}</td>
                         <td class="py-2.5 px-3 text-center text-emerald-400 font-bold">${p.wins}</td>
@@ -1456,6 +1466,16 @@ async function generateSchedule() {
             const currentRole = document.getElementById('p-role').textContent;
             const roleSel = document.getElementById('pe-role');
             if (currentRole && currentRole !== '-') roleSel.value = currentRole;
+            const rankSelect = document.getElementById('pe-rank');
+            if (lastRiotLookup) {
+                rankSelect.disabled = true;
+                rankSelect.classList.add('opacity-50', 'cursor-not-allowed');
+                document.getElementById('pe-rank-lock-notice').classList.remove('hidden');
+            } else {
+                rankSelect.disabled = false;
+                rankSelect.classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('pe-rank-lock-notice').classList.add('hidden');
+            }
             document.getElementById('profile-edit-modal').classList.remove('hidden');
         }
         function closeProfileEdit() {
@@ -1465,11 +1485,11 @@ async function generateSchedule() {
             const body = {};
             const displayName = document.getElementById('pe-display-name').value.trim();
             const riotId = document.getElementById('pe-riot-id').value.trim();
-            const rank = document.getElementById('pe-rank').value;
+            const rankSelect = document.getElementById('pe-rank');
             const role = document.getElementById('pe-role').value;
             if (displayName) body.displayName = displayName;
             if (riotId) body.riotId = riotId;
-            if (rank) body.rank = rank;
+            if (!rankSelect.disabled) body.rank = rankSelect.value;
             if (role) body.role = role;
             if (Object.keys(body).length === 0) return showToast('Không có thay đổi', 'info');
             try {
@@ -1495,12 +1515,22 @@ async function generateSchedule() {
                 document.getElementById('team-modal-wr').textContent = total > 0 ? Math.round(data.wins / total * 100) + '%' : '-';
                 const rosterEl = document.getElementById('team-modal-roster');
                 if (data.roster && data.roster.length > 0) {
-                    rosterEl.innerHTML = data.roster.map(r => `<div class="bg-valBg/60 border border-gray-800 p-2 rounded-lg text-center">
-                        <p class="text-[10px] text-white font-bold truncate" title="${r.displayName}">${r.displayName}</p>
-                        <p class="text-[9px] text-gray-500">${r.rank || ''}</p>
-                        <p class="text-[9px] text-gray-500">${r.role || ''}</p>
-                        <p class="text-[10px] text-yellow-400 font-mono font-bold">${r.elo}</p>
-                    </div>`).join('');
+                    const isCaptain = discordUser && data.team.captainDiscordId === discordUser.discordId;
+                    rosterEl.innerHTML = data.roster.map(r => {
+                        const avatarUrl = r.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + r.discordId + '/' + r.discordAvatar + '.png?size=64' : '';
+                        const canKick = isCaptain && r.discordId !== data.team.captainDiscordId;
+                        return `<div class="bg-valBg/60 border border-gray-800 p-2 rounded-lg text-center">
+                            <div class="flex justify-center mb-1">
+                                ${avatarUrl ? `<img src="${avatarUrl}" class="w-10 h-10 rounded-full border-2 border-gray-700 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="openProfile('${r.discordId}')" title="Xem hồ sơ" onerror="this.style.display='none'">` : `<div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="openProfile('${r.discordId}')" title="Xem hồ sơ"><i class="fa-solid fa-user text-gray-600 text-sm"></i></div>`}
+                            </div>
+                            <p class="text-[10px] text-white font-bold truncate cursor-pointer hover:text-valCyan" onclick="openProfile('${r.discordId}')" title="Xem hồ sơ">${r.displayName}</p>
+                            <p class="text-[9px] text-gray-500">${r.rank || ''}</p>
+                            <p class="text-[9px] text-gray-500">${r.role || ''}</p>
+                            <p class="text-[10px] text-yellow-400 font-mono font-bold">${r.elo}</p>
+                            ${canKick ? `<button onclick="confirmKickMember('${data.team.name}', '${r.discordId}', '${r.displayName.replace(/'/g, "\\'")}')" class="mt-1 text-[9px] bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-red-200 px-2 py-0.5 rounded transition"><i class="fa-solid fa-user-minus mr-0.5"></i>Đá</button>` : ''}
+                            ${r.discordId === data.team.captainDiscordId ? `<p class="text-[8px] text-emerald-400 mt-1"><i class="fa-solid fa-crown"></i> Đội trưởng</p>` : ''}
+                        </div>`;
+                    }).join('');
                 } else { rosterEl.innerHTML = '<p class="text-gray-500 text-xs col-span-5 text-center py-4">Chưa có thành viên</p>'; }
                 const matchEl = document.getElementById('team-modal-matches');
                 if (data.matchHistory && data.matchHistory.length > 0) {
@@ -1526,6 +1556,16 @@ async function generateSchedule() {
         }
         function closeTeamDetail() {
             document.getElementById('team-modal').classList.add('hidden');
+        }
+        async function confirmKickMember(teamName, targetDiscordId, targetName) {
+            if (!confirm('Bạn có chắc chắn muốn đá "' + targetName + '" ra khỏi đội ' + teamName + ' không?')) return;
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/players/' + targetDiscordId, { method: 'DELETE' });
+                showToast('Đã đá ' + targetName + ' khỏi đội!', 'success');
+                closeTeamDetail();
+                openTeamDetail(teamName);
+                loadTeamsBrowser();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
         }
         // Make team names clickable — call this after rendering any team name
         function wireTeamClicks() {
@@ -2016,8 +2056,8 @@ async function generateSchedule() {
                     return;
                 }
                 container.innerHTML = agents.map(p => `
-                    <div class="flex justify-between items-center bg-valCard/40 p-2 rounded-lg border border-gray-800">
-                        <span class="text-gray-200 font-medium">${p.displayName}</span>
+                    <div class="flex justify-between items-center bg-valCard/40 p-2 rounded-lg border border-gray-800 cursor-pointer hover:bg-valCard/60 hover:border-valCyan/30 transition" onclick="openProfile('${p.discordId}')">
+                        <span class="text-gray-200 font-medium hover:text-valCyan">${p.displayName}</span>
                         <span class="text-[10px] text-gray-400">${p.rank} • ${p.role} • ${p.elo} Elo</span>
                     </div>
                 `).join('');
@@ -2381,12 +2421,15 @@ async function generateSchedule() {
                                 const p = await api('/api/players/lookup/' + rid).catch(() => null);
                                 const name = p ? p.displayName : rid;
                                 const isCap = rid === team.captainDiscordId;
-                                html += '<div class="flex items-center justify-between bg-valBg/60 border border-gray-800 p-3 rounded-xl">';
-                                html += '<div class="flex items-center gap-2"><i class="fa-solid fa-user text-gray-500"></i><span class="text-white text-sm font-bold">' + escHtml(name) + '</span>';
+                                const avatarUrl = p?.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + rid + '/' + p.discordAvatar + '.png?size=32' : '';
+                                html += '<div class="flex items-center justify-between bg-valBg/60 border border-gray-800 p-3 rounded-xl hover:border-valCyan/30 transition">';
+                                html += '<div class="flex items-center gap-2">';
+                                html += avatarUrl ? '<img src="' + avatarUrl + '" class="w-7 h-7 rounded-full border border-gray-700 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="openProfile(\'' + rid + '\')" title="Xem hồ sơ" onerror="this.style.display=\'none\'">' : '<div class="w-7 h-7 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="openProfile(\'' + rid + '\')" title="Xem hồ sơ"><i class="fa-solid fa-user text-gray-600 text-[10px]"></i></div>';
+                                html += '<span class="text-white text-sm font-bold cursor-pointer hover:text-valCyan" onclick="openProfile(\'' + rid + '\')">' + escHtml(name) + '</span>';
                                 if (isCap) html += '<span class="text-[9px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded font-bold border border-yellow-400/30"><i class="fa-solid fa-crown mr-0.5"></i>Đội Trưởng</span>';
                                 html += '</div>';
                                 if (isCaptain && !isCap) {
-                                    html += '<button onclick="removeMember(\'' + team.name + '\',\'' + rid + '\')" class="text-[10px] text-red-400 hover:text-red-300"><i class="fa-solid fa-user-minus"></i></button>';
+                                    html += '<button onclick="confirmKickMember(\'' + team.name + '\',\'' + rid + '\',\'' + escHtml(name).replace(/'/g, "\\'") + '\')" class="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-950/30 p-1 rounded transition" title="Đá thành viên"><i class="fa-solid fa-user-minus"></i></button>';
                                 }
                                 html += '</div>';
                             }
