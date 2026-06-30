@@ -3,17 +3,7 @@ const prisma = require('../utils/prisma');
 const { getIO } = require('../utils/socket');
 const { notifyMatchResult } = require('./webhookController');
 const { logAction } = require('../utils/audit');
-
-const ELO_K_FACTOR = 32;
-
-function calculateEloDelta(winnerAvgElo, loserAvgElo) {
-  const expectedWinner = 1 / (1 + Math.pow(10, (loserAvgElo - winnerAvgElo) / 400));
-  const expectedLoser = 1 / (1 + Math.pow(10, (winnerAvgElo - loserAvgElo) / 400));
-  return {
-    winnerDelta: Math.round(ELO_K_FACTOR * (1 - expectedWinner)),
-    loserDelta: Math.round(ELO_K_FACTOR * (0 - expectedLoser))
-  };
-}
+const { applyEloChanges } = require('../utils/elo');
 
 exports.getAll = async (req, res) => {
   const matches = await prisma.match.findMany({ orderBy: { scheduledAt: 'asc' } });
@@ -76,32 +66,7 @@ exports.updateResult = async (req, res) => {
   try { const { createNotification } = require('../routes/notifications'); createNotification('match_result', match.team1Name + ' ' + s1 + '-' + s2 + ' ' + match.team2Name, { matchId: id, winner }); } catch(e) {}
 
   try {
-    const team1Players = await prisma.player.findMany({ where: { teamId: existing.team1Name } });
-    const team2Players = await prisma.player.findMany({ where: { teamId: existing.team2Name } });
-
-    if (winner && team1Players.length > 0 && team2Players.length > 0) {
-      const t1AvgElo = Math.round(team1Players.reduce((s, p) => s + p.elo, 0) / team1Players.length);
-      const t2AvgElo = Math.round(team2Players.reduce((s, p) => s + p.elo, 0) / team2Players.length);
-
-      const { winnerDelta, loserDelta } = calculateEloDelta(
-        winner === existing.team1Name ? t1AvgElo : t2AvgElo,
-        winner === existing.team1Name ? t2AvgElo : t1AvgElo
-      );
-
-      const winningTeam = winner === existing.team1Name ? team1Players : team2Players;
-      const losingTeam = winner === existing.team1Name ? team2Players : team1Players;
-
-      for (const p of winningTeam) {
-        const newElo = p.elo + winnerDelta;
-        await prisma.player.update({ where: { id: p.id }, data: { elo: newElo, wins: { increment: 1 } } });
-        await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: newElo, delta: winnerDelta, matchId: id, reason: 'win' } });
-      }
-      for (const p of losingTeam) {
-        const newElo = p.elo + loserDelta;
-        await prisma.player.update({ where: { id: p.id }, data: { elo: newElo, losses: { increment: 1 } } });
-        await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: newElo, delta: loserDelta, matchId: id, reason: 'loss' } });
-      }
-    }
+    await applyEloChanges(id, existing.team1Name, existing.team2Name, winner);
   } catch (e) { /* non-critical */ }
 
   logAction('match.result', existing.team1Name + ' ' + s1 + '-' + s2 + ' ' + existing.team2Name).catch(err => log.error('Caught error', { error: err.message }));

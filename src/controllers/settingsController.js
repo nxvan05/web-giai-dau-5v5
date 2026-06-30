@@ -23,3 +23,37 @@ exports.updateSetting = async (req, res) => {
   });
   res.json({ key: setting.key, value: setting.value });
 };
+
+exports.resetTournament = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(403).json({ error: 'Chỉ admin mới có quyền reset giải đấu' });
+    }
+    
+    // Clear tournament state
+    await prisma.checkIn.deleteMany();
+    await prisma.matchPlayerStat.deleteMany();
+    await prisma.scoreReport.deleteMany();
+    await prisma.dispute.deleteMany();
+    await prisma.streamSession.deleteMany();
+    await prisma.match.deleteMany();
+    
+    // Clear specific settings
+    await prisma.setting.deleteMany({
+      where: {
+        OR: [
+          { key: 'bracket' },
+          { key: { startsWith: 'veto_' } }
+        ]
+      }
+    });
+    
+    const { getIO } = require('../utils/socket');
+    const io = getIO();
+    if (io) io.emit('tournament:reset');
+    
+    res.json({ message: 'Giải đấu đã được reset thành công' });
+  } catch (e) {
+    next(e);
+  }
+};

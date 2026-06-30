@@ -1,19 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const orAuth = require('../middleware/orAuth');
 const prisma = require('../utils/prisma');
 const { getPagination, paginatedResponse } = require('../utils/pagination');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
 
-function orAuth(req, res, next) {
-  const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-  const discord = req.cookies?.discord_token;
-  const jwt = require('jsonwebtoken');
-  try { if (token) { req.user = jwt.verify(token, process.env.JWT_SECRET); return next(); } } catch(_) {}
-  try { if (discord) { const d = jwt.verify(discord, process.env.JWT_SECRET); if (d.type === 'discord') { req.discordUser = d; return next(); } } } catch(_) {}
-  return res.status(401).json({ error: 'Vui lòng đăng nhập' });
-}
+
 
 router.get('/', orAuth, async (req, res, next) => {
   try {
@@ -56,12 +50,12 @@ router.put('/:id', auth,
   async (req, res, next) => {
   try {
     const { status, resolution } = req.body;
-    const { createAudit } = require('../utils/audit');
+    const { logAction } = require('../utils/audit');
     const dispute = await prisma.dispute.update({
       where: { id: req.params.id },
       data: { status, resolution }
     });
-    await createAudit(`Dispute ${req.params.id}: ${status}`);
+    await logAction(`Dispute ${req.params.id}: ${status}`);
     const { getIO } = require('../utils/socket');
     const io = getIO();
     if (io) io.emit('dispute:updated', dispute);

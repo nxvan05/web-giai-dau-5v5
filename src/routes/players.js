@@ -6,6 +6,8 @@ const prisma = require('../utils/prisma');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
 const pc = require('../controllers/playerController');
+const orAuth = require('../middleware/orAuth');
+const { henrikRequest } = require('../utils/henrik');
 
 router.get('/', auth, pc.getAll);
 router.get('/profile/:discordId', pc.getProfile);
@@ -58,27 +60,22 @@ router.put('/me', discordAuth,
       const discordId = req.discordUser.discordId;
       const player = await prisma.player.findFirst({ where: { discordId } });
       if (!player) return res.status(404).json({ error: 'Không tìm thấy hồ sơ' });
-      const { displayName, riotId, rank, role } = req.body;
+      const { displayName, riotId, rank, role, cardUrl, accountLevel } = req.body;
       const data = {};
       if (displayName !== undefined) data.displayName = displayName;
       if (riotId !== undefined) data.riotId = riotId;
       // Rank locked: if player already has a rank, ignore rank changes
       if (rank !== undefined && (!player.rank || player.rank === 'Unranked')) data.rank = rank;
       if (role !== undefined) data.role = role;
+        if (cardUrl !== undefined) data.cardUrl = cardUrl;
+        if (accountLevel !== undefined) data.accountLevel = parseInt(accountLevel);
       const updated = await prisma.player.update({ where: { id: player.id }, data });
       res.json(updated);
     } catch (e) { next(e); }
   }
 );
 
-function orAuth(req, res, next) {
-  const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-  const discord = req.cookies?.discord_token;
-  const jwt = require('jsonwebtoken');
-  try { if (token) { req.user = jwt.verify(token, process.env.JWT_SECRET); return next(); } } catch(_) {}
-  try { if (discord) { const d = jwt.verify(discord, process.env.JWT_SECRET); if (d.type === 'discord') { req.discordUser = d; return next(); } } } catch(_) {}
-  return res.status(401).json({ error: 'Vui lòng đăng nhập' });
-}
+// orAuth imported from middleware/orAuth.js
 
 router.post('/', orAuth,
   body('displayName').trim().notEmpty().withMessage('Display name required'),
@@ -158,14 +155,7 @@ router.post('/refresh-rank', discordAuth, async (req, res, next) => {
     const parts = player.riotId.split('#');
     const name = encodeURIComponent(parts[0]);
     const tag = encodeURIComponent(parts.slice(1).join('#'));
-    const https = require('https');
-    const mmrData = await new Promise((resolve, reject) => {
-      const opts = {
-        hostname: 'api.henrikdev.xyz', path: `/valorant/v2/mmr/ap/${name}/${tag}`,
-        headers: { 'Authorization': process.env.HENRIKDEV_KEY || '' }
-      };
-      https.get(opts, resp => { let d = ''; resp.on('data', c => d += c); resp.on('end', () => { try { const j = JSON.parse(d); if (j.status === 200) resolve(j.data); else reject(new Error(j.errors?.[0]?.message || 'Lỗi API')); } catch(e) { reject(new Error('Không parse được dữ liệu')); } }); }).on('error', reject);
-    });
+    const mmrData = await henrikRequest(`/valorant/v2/mmr/ap/${name}/${tag}`);
     const currentRank = mmrData.current_data?.currenttierpatched || null;
     const peakRank = mmrData.highest_rank?.patched_tier || null;
     const newRank = currentRank || peakRank || 'Unknown';

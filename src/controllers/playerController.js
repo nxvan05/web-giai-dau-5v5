@@ -15,7 +15,7 @@ exports.create = async (req, res) => {
   if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
   // admin auth: use body.discordId; discord auth: use JWT
   const discordId = req.discordUser ? req.discordUser.discordId : req.body.discordId;
-  const { displayName, riotId, rank, role, type, pts, peakRank } = req.body;
+  const { displayName, riotId, rank, role, type, pts, peakRank, cardUrl, accountLevel } = req.body;
 
   if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
 
@@ -43,7 +43,11 @@ exports.updatePartial = async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Not found' });
     if (existing.discordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Không có quyền sửa người khác' });
   }
-  const allowed = ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps'];
+  
+  // If discordUser, only allow safe fields. If admin, allow all fields.
+  const allowed = req.discordUser 
+    ? ['displayName', 'riotId', 'rank', 'role', 'type', 'cardUrl', 'accountLevel'] 
+    : ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps', 'peakRank'];
   const data = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) {

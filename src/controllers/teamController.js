@@ -3,6 +3,7 @@ const { getIO } = require('../utils/socket');
 const { notifyPlayerRegistered } = require('./webhookController');
 const { logAction } = require('../utils/audit');
 const containsProfanity = require('../utils/profanity');
+const jwt = require('jsonwebtoken');
 
 exports.getTeams = async (req, res) => {
   const team1 = await prisma.setting.findUnique({ where: { key: 'team1' } });
@@ -24,7 +25,6 @@ exports.listAll = async (req, res, next) => {
   try {
     let authed = false;
     try {
-      const jwt = require('jsonwebtoken');
       const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
       const discord = req.cookies?.discord_token;
       if (token) { jwt.verify(token, process.env.JWT_SECRET); authed = true; }

@@ -7,16 +7,7 @@ const { body } = require('express-validator');
 const validate = require('../middleware/validate');
 const prisma = require('../utils/prisma');
 const containsProfanity = require('../utils/profanity');
-
-// Combined auth: admin token OR Discord JWT
-function orAuth(req, res, next) {
-  const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-  const discord = req.cookies?.discord_token;
-  const jwt = require('jsonwebtoken');
-  try { if (token) { req.user = jwt.verify(token, process.env.JWT_SECRET); return next(); } } catch(_) {}
-  try { if (discord) { const d = jwt.verify(discord, process.env.JWT_SECRET); if (d.type === 'discord') { req.discordUser = d; return next(); } } } catch(_) {}
-  return res.status(401).json({ error: 'Vui lòng đăng nhập' });
-}
+const orAuth = require('../middleware/orAuth');
 
 // Old auto-draft routes (auth required)
 router.get('/', auth, getTeams);
@@ -51,6 +42,37 @@ router.post('/create-from-registration', orAuth, async (req, res, next) => {
     const io = require('../utils/socket').getIO();
     if (io) io.emit('team:created', team);
     res.status(201).json(team);
+  } catch (e) { next(e); }
+});
+
+// Admin: preview auto-draft teams without saving to DB
+router.get('/admin/draft-preview', auth, async (req, res, next) => {
+  try {
+    const teams = await prisma.team.findMany({ where: { status: 'recruiting' } });
+    const allPlayers = [];
+    for (const team of teams) {
+      const roster = JSON.parse(team.rosterJson || '[]');
+      for (const discordId of roster) {
+        const player = await prisma.player.findFirst({ where: { discordId } });
+        if (player) allPlayers.push(player);
+      }
+    }
+    // Shuffle and group into 5-player teams
+    const shuffled = allPlayers.sort(() => Math.random() - 0.5);
+    const newTeams = [];
+    for (let i = 0; i < shuffled.length; i += 5) {
+      const group = shuffled.slice(i, i + 5);
+      if (group.length < 5) continue;
+      const teamName = `Đội ${String.fromCharCode(65 + newTeams.length)} (Auto)`;
+      const totalPts = group.reduce((s, p) => s + (p.pts || 0), 0);
+      newTeams.push({
+        name: teamName,
+        captainDiscordId: group[0].discordId,
+        rosterPlayers: group,
+        pts: totalPts
+      });
+    }
+    res.json({ draftablePlayers: allPlayers.length, teams: newTeams });
   } catch (e) { next(e); }
 });
 
@@ -115,10 +137,13 @@ router.put('/:name/rename', orAuth, async (req, res, next) => {
     if (containsProfanity(newName)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
     const nameExists = await prisma.team.findUnique({ where: { name: newName } });
     if (nameExists && nameExists.id !== team.id) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
-    await prisma.team.update({ where: { id: team.id }, data: { name: newName } });
-    await prisma.player.updateMany({ where: { teamId: team.name }, data: { teamId: newName } });
-    await prisma.match.updateMany({ where: { team1Name: team.name }, data: { team1Name: newName } });
-    await prisma.match.updateMany({ where: { team2Name: team.name }, data: { team2Name: newName } });
+    // Use transaction to ensure all-or-nothing update across 4 tables
+    await prisma.$transaction([
+      prisma.team.update({ where: { id: team.id }, data: { name: newName } }),
+      prisma.player.updateMany({ where: { teamId: team.name }, data: { teamId: newName } }),
+      prisma.match.updateMany({ where: { team1Name: team.name }, data: { team1Name: newName } }),
+      prisma.match.updateMany({ where: { team2Name: team.name }, data: { team2Name: newName } })
+    ]);
     res.json({ ok: true, name: newName });
   } catch (e) { next(e); }
 });

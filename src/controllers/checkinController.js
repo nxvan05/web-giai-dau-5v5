@@ -20,8 +20,18 @@ exports.toggleCheckin = async (req, res, next) => {
     const { discordId, playerName } = req.body;
     if (!discordId) return res.status(400).json({ error: 'discordId required' });
     const authedDiscordId = req.user?.discordId || req.discordUser?.discordId;
-    if (req.user?.role !== 'admin' && authedDiscordId !== discordId) {
+    if (!req.user && authedDiscordId !== discordId) {
       return res.status(403).json({ error: 'Chỉ được check-in cho chính mình' });
+    }
+
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!match || !match.scheduledAt) return res.status(404).json({ error: 'Match không hợp lệ hoặc chưa có lịch' });
+
+    const now = new Date();
+    const matchTime = new Date(match.scheduledAt);
+    const minutesBefore = (matchTime - now) / 60000;
+    if (!req.user && (minutesBefore > 30 || minutesBefore < 0)) {
+      return res.status(400).json({ error: 'Chỉ được check-in trong khoảng 30 phút trước giờ đấu' });
     }
 
     const player = await prisma.player.findFirst({ where: { discordId } });
@@ -42,7 +52,7 @@ exports.toggleCheckin = async (req, res, next) => {
       });
     }
 
-    const all = await prisma.checkIn.findMany({ where: { matchId } });
+    const all = await prisma.checkIn.findMany({ where: { matchId, status: 'confirmed' } });
     const io = getIO();
     if (io) io.emit('checkin:updated', { matchId, count: all.length, checkins: all });
     res.json({ count: all.length, checkins: all });

@@ -1,6 +1,8 @@
 const prisma = require('../utils/prisma');
 const log = require('../utils/logger');
 
+const remindedMatches = new Set();
+
 async function checkAndRemind(discordBot) {
   const now = new Date();
   const in30min = new Date(now.getTime() + 30 * 60 * 1000);
@@ -13,9 +15,13 @@ async function checkAndRemind(discordBot) {
   });
 
   for (const match of upcoming) {
+    if (remindedMatches.has(match.id)) continue;
+
     const scheduled = new Date(match.scheduledAt);
     const diff = Math.round((scheduled - now) / 60000);
     if (diff <= 0 || diff > 30) continue;
+
+    remindedMatches.add(match.id);
 
     const players = await prisma.player.findMany({
       where: {

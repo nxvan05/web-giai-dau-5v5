@@ -11,10 +11,10 @@ exports.login = async (req, res) => {
   if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
   const valid = await bcrypt.compare(password, admin.password);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: admin.id, username: admin.username }, process.env.JWT_SECRET);
+  const token = jwt.sign({ id: admin.id, username: admin.username }, process.env.JWT_SECRET, { expiresIn: '7d' });
   res.cookie('token', token, {
     httpOnly: true,
-    secure: isProduction,
+    secure: process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] === 'https',
     sameSite: isProduction ? 'strict' : 'lax',
     maxAge: 365 * 24 * 60 * 60 * 1000
   });

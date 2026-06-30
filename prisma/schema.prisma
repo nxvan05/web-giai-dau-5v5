@@ -23,6 +23,8 @@ model Player {
   rank         String
   role         String
   type         String
+  cardUrl      String?  @default("")
+  accountLevel Int?     @default(0)
   pts           Int      @default(0)
   elo           Int      @default(1200)
   peakRank      String?

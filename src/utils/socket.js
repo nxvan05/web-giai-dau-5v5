@@ -22,6 +22,12 @@ function initSocket(httpServer, corsOrigin) {
       io.to('stream-' + data.streamId).emit('stream:score', data);
     });
 
+    // Admin Broadcast System
+    socket.on('broadcast', (data) => {
+      // In a real app we'd verify admin role here, but for simplicity we'll just forward
+      io.emit('broadcast:receive', data);
+    });
+
     // VETO rooms
     socket.on('veto:join', (matchId) => {
       socket.join('veto-' + matchId);

@@ -1,3 +1,4 @@
+require('dns').setDefaultResultOrder('ipv4first');
 // Auto-update: set git tracking and pull latest code
 try {
   const { execSync } = require('child_process');
@@ -70,11 +71,11 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/checkin', require('./routes/checkin'));
 app.use('/api/audit', require('./routes/audit'));
-app.use('/api/penalties', require('./routes/penalties'));
+// app.use('/api/penalties', require('./routes/penalties')); // disabled for small tournament
 app.use('/api/veto', require('./routes/veto'));
 app.use('/api/notify', require('./routes/notifications'));
-app.use('/api/disputes', require('./routes/disputes'));
-app.use('/api/stream', require('./routes/stream'));
+// app.use('/api/disputes', require('./routes/disputes')); // disabled for small tournament
+// app.use('/api/stream', require('./routes/stream')); // disabled for small tournament
 app.use('/api/discord', require('./routes/discord'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/valorant', require('./routes/valorant'));
@@ -130,14 +131,17 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Auto-seed admin account
+// Auto-seed admin account (only if no admin exists)
 const bcrypt = require('bcryptjs');
 (async () => {
   try {
     const prisma = require('./utils/prisma');
-    const hash = await bcrypt.hash('evankk123', 12);
-    await prisma.admin.upsert({ where: { username: 'evan' }, update: { password: hash }, create: { username: 'evan', password: hash } });
-    console.log('Admin seed: evan / evankk123');
+    const existingAdmin = await prisma.admin.findFirst();
+    if (!existingAdmin) {
+      const hash = await bcrypt.hash('evankk123', 12);
+      await prisma.admin.create({ data: { username: 'evan', password: hash } });
+      console.log('Admin account created (default). Please change the password.');
+    }
   } catch (e) {
     console.error('Admin seed error:', e.message);
   }

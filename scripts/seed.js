@@ -100,7 +100,7 @@ async function main() {
             team2Name: group[j],
             score1: isCompleted ? score1 : 0,
             score2: isCompleted ? score2 : 0,
-            winner: isCompleted ? (score1 > score2 ? group[i] : group[j]) : null,
+            winner: isCompleted ? (score1 === score2 ? null : (score1 > score2 ? group[i] : group[j])) : null,
             map: maps[Math.floor(Math.random() * maps.length)],
             scheduledAt: new Date(startDate.getTime() + matchIdx * 3600000),
             status: isCompleted ? 'completed' : 'pending',

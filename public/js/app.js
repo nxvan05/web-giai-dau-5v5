@@ -1,5 +1,5 @@
         const API = window.location.origin;
-        let apiToken = localStorage.getItem('evan_api_token');
+        let apiToken = null; // Admin auth is now Discord-based
         let apiPlayerCache = [];
         let lastRiotLookup = null;
 
@@ -29,12 +29,14 @@
         }
 
         function requireAdminAuth() {
-          if (apiToken) return true;
-          _adminModalAllowed = true;
-          openAdminLoginModal();
-          showToast('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại!', 'error');
-          return false;
-        }
+            if (apiToken) return true;
+            if (discordUser && discordUser.isAdmin) {
+                apiToken = 'discord_admin';
+                return true;
+            }
+            showToast('Bạn không có quyền Admin!', 'error');
+            return false;
+          }
 
         let loadingCount = 0;
 
@@ -97,22 +99,11 @@
         let team2 = [];
 
         // Khởi động trang, tự động hồi phục trạng thái dữ liệu cũ (LocalStorage)
-        window.onload = async function() {
-            loadTournamentData();
-            if (apiToken) {
-                try {
-                    const me = await api('/api/auth/me');
-                    document.getElementById('btn-admin-tab').classList.remove('hidden');
-                    document.getElementById('admin-trigger-btn').innerHTML = `<i class="fa-solid fa-user-shield text-valCyan"></i> Admin Đã Đăng Nhập`;
-                    await syncLocalToAPI();
-                    await loadPlayers();
-                    renderAdmin();
-                } catch(e) {
-                    apiToken = null;
-                    localStorage.removeItem('evan_api_token');
-                }
-            }
-        };
+                window.onload = async function() {
+              loadTournamentData();
+              // Admin is now managed by Discord login (checkDiscordLogin).
+              // No need to call /api/auth/me with old token.
+          };
 
         // Đồng bộ dữ liệu cục bộ an toàn
         function saveTournamentData() {
@@ -147,8 +138,8 @@
         }
 
         // Tự động sửa lỗi tải Logo và vẽ Vector thay thế
-        function handleLogoError() {
-            const logoImg = document.getElementById('main-logo');
+        function handleLogoError(img) {
+            const logoImg = img || document.getElementById('main-logo');
             if (logoImg) {
                 if (logoImg.getAttribute('src') === 'image_f5cea1.jpg') {
                     logoImg.src = 'image_27c3e1.jpg';
@@ -470,22 +461,9 @@
 
         // Quản lý Đăng Nhập & Đăng Xuất Admin an toàn
         let _adminModalAllowed = false;
-        function confirmAdminLogin() {
-            _adminModalAllowed = true;
-            if (confirm('Bạn có chắc muốn mở Quyền Điều Hành?')) openAdminLoginModal();
-        }
-        function openAdminLoginModal() {
-            if (!_adminModalAllowed) { console.warn('Admin modal blocked (not user-initiated)'); return; }
-            _adminModalAllowed = false;
-            console.trace('openAdminLoginModal called');
-            document.getElementById('admin-password-input').value = "";
-            document.getElementById('admin-login-modal').classList.remove('hidden'); 
-            setTimeout(() => document.getElementById('admin-password-input')?.focus(), 100);
-        }
-        
-        function closeAdminLoginModal() { 
-            document.getElementById('admin-login-modal').classList.add('hidden'); 
-        }
+        function confirmAdminLogin() {}
+          function openAdminLoginModal() {}
+          function closeAdminLoginModal() {}
         
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
@@ -496,31 +474,8 @@
             }
         });
         
-        async function checkAdminPassword() {
-            const pin = document.getElementById('admin-password-input').value;
-            try {
-                await apiLogin('evan', pin);
-                document.getElementById('btn-admin-tab').classList.remove('hidden');
-                document.getElementById('schedule-finals-admin')?.classList.remove('hidden');
-                document.getElementById('admin-trigger-btn').innerHTML = `<i class="fa-solid fa-user-shield text-valCyan"></i> Admin Đã Đăng Nhập`;
-                closeAdminLoginModal();
-                switchTab('admin-tab');
-                await syncLocalToAPI();
-                await loadPlayers();
-                renderAdmin();
-                showToast("Đăng nhập quyền Admin thành công!", "success");
-            } catch(e) {
-                showToast("Sai mật khẩu!", "error");
-            }
-        }
-
-        function logoutAdmin() {
-            apiLogout();
-            document.getElementById('btn-admin-tab').classList.add('hidden');
-            document.getElementById('admin-trigger-btn').innerHTML = `<i class="fa-solid fa-shield-halved"></i> Kích Hoạt Quyền Admin`;
-            switchTab('guide-tab');
-            showToast("Đã đăng xuất quyền điều phối giải đấu!", "success");
-        }
+        async function checkAdminPassword() {}
+          function logoutAdmin() {}
 
         let currentAdminSubTab = 'players';
         function switchAdminSubTab(tab) {
@@ -1101,16 +1056,20 @@
             });
 
             const drawTeam = (arr, id, ptsId, stId, num) => {
-                let pts = 0; document.getElementById(id).innerHTML = '';
+                const el = document.getElementById(id);
+                if (!el) return;
+                let pts = 0; el.innerHTML = '';
                 for(let i=0; i<5; i++) {
                     if(arr[i]) {
                         pts += arr[i].pts;
                         const name = arr[i].displayName || arr[i].discord || 'Unknown';
-                        document.getElementById(id).innerHTML += `<div class="flex justify-between items-center bg-valCard border border-gray-700 p-2 rounded-lg text-xs"><span class="text-white">${name} (${arr[i].pts}đ)</span><button onclick="team${num}=team${num}.filter(x=>x.id!==${arr[i].id});saveTournamentData();renderAdmin();" class="text-gray-500 hover:text-valRed"><i class="fa-solid fa-xmark"></i></button></div>`;
-                    } else document.getElementById(id).innerHTML += `<div class="bg-valBg border border-dashed border-gray-800 p-2 rounded-lg text-xs text-gray-600 italic">Slot Trống</div>`;
+                        el.innerHTML += `<div class="flex justify-between items-center bg-valCard border border-gray-700 p-2 rounded-lg text-xs"><span class="text-white">${name} (${arr[i].pts}đ)</span><button onclick="team${num}=team${num}.filter(x=>x.id!==${arr[i].id});saveTournamentData();renderAdmin();" class="text-gray-500 hover:text-valRed"><i class="fa-solid fa-xmark"></i></button></div>`;
+                    } else el.innerHTML += `<div class="bg-valBg border border-dashed border-gray-800 p-2 rounded-lg text-xs text-gray-600 italic">Slot Trống</div>`;
                 }
-                document.getElementById(ptsId).innerText = pts+'đ';
+                const ptsEl = document.getElementById(ptsId);
+                if (ptsEl) ptsEl.innerText = pts+'đ';
                 const st = document.getElementById(stId);
+                if (!st) return;
                 if(pts>21) { st.innerText = 'VƯỢT TRẦN'; st.className = 'text-[9px] bg-valRed/20 text-valRed px-2 rounded font-bold animate-pulse'; }
                 else { st.innerText = 'Hợp Lệ'; st.className = 'text-[9px] bg-emerald-500/20 text-emerald-400 px-2 rounded font-bold'; }
             };
@@ -1965,7 +1924,11 @@ async function generateSchedule() {
                         const src = 'https://cdn.discordapp.com/avatars/' + discordUser.discordId + '/' + discordUser.discordAvatar + '.png';
                         avatar.src = src;
                     }
-                    // Auto-fill Discord ID in dashboard input
+      if (data.user.isAdmin && !apiToken) {
+        apiToken = 'discord_admin';
+        localStorage.setItem('evan_api_token', 'discord_admin');
+      }
+      // Auto-fill Discord ID in dashboard input
                     const dashInput = document.getElementById('dashboard-discord-id');
                     if (dashInput) { dashInput.value = discordUser.discordId; }
                     // Check if registered
@@ -1992,6 +1955,10 @@ async function generateSchedule() {
                 await fetch('/api/discord/logout', { method: 'POST', credentials: 'include' });
             } catch(e) {}
             discordUser = null;
+  if (apiToken === 'discord_admin') {
+    apiToken = null;
+    localStorage.removeItem('evan_api_token');
+  }
             document.getElementById('discord-login-btn').classList.remove('hidden');
             document.getElementById('discord-user-info').classList.add('hidden');
             showToast('Đã đăng xuất Discord', 'info');

@@ -4,8 +4,10 @@ const auth = require('../middleware/auth');
 const discordAuth = require('../middleware/discordAuth');
 const prisma = require('../utils/prisma');
 const { getPagination, paginatedResponse } = require('../utils/pagination');
+const { getIO } = require('../utils/socket');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
+const { applyEloChanges } = require('../utils/elo');
 
 router.get('/', async (req, res, next) => {
   try {
@@ -65,6 +67,10 @@ router.put('/:id', auth,
           streamUrl: streamUrl !== undefined ? streamUrl : existing.streamUrl
         }
       });
+      
+      const io = getIO();
+      if (io) io.emit('data:updated', { type: 'match', id: match.id });
+      
       res.json(match);
     } catch (e) { next(e); }
   }
@@ -359,33 +365,13 @@ router.put('/score-reports/:id/approve', auth, async (req, res, next) => {
     await prisma.scoreReport.update({ where: { id: report.id }, data: { status: 'approved', resolvedAt: new Date(), resolvedBy: req.user.username || 'admin' } });
     // ELO calculation
     try {
-      if (winner) {
-        const ELO_K = 32;
-        const winTeam = await prisma.player.findMany({ where: { teamId: winner } });
-        const loseTeamName = winner === match.team1Name ? match.team2Name : match.team1Name;
-        const loseTeam = await prisma.player.findMany({ where: { teamId: loseTeamName } });
-        if (winTeam.length > 0 && loseTeam.length > 0) {
-          const winAvg = Math.round(winTeam.reduce((s,p) => s + p.elo, 0) / winTeam.length);
-          const loseAvg = Math.round(loseTeam.reduce((s,p) => s + p.elo, 0) / loseTeam.length);
-          const expectedWin = 1 / (1 + Math.pow(10, (loseAvg - winAvg) / 400));
-          const expectedLose = 1 / (1 + Math.pow(10, (winAvg - loseAvg) / 400));
-          const wDelta = Math.round(ELO_K * (1 - expectedWin));
-          const lDelta = Math.round(ELO_K * (0 - expectedLose));
-          for (const p of winTeam) {
-            const ne = p.elo + wDelta;
-            await prisma.player.update({ where: { id: p.id }, data: { elo: ne, wins: { increment: 1 } } });
-            await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: ne, delta: wDelta, matchId: match.id, reason: 'win' } });
-          }
-          for (const p of loseTeam) {
-            const ne = p.elo + lDelta;
-            await prisma.player.update({ where: { id: p.id }, data: { elo: ne, losses: { increment: 1 } } });
-            await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: ne, delta: lDelta, matchId: match.id, reason: 'loss' } });
-          }
-        }
-      }
+      await applyEloChanges(match.id, match.team1Name, match.team2Name, winner);
     } catch (e) { /* non-critical */ }
     const io = getIO();
-    if (io) io.emit('match:result', match);
+    if (io) {
+      io.emit('match:result', match);
+      io.emit('data:updated', { type: 'stats', matchId: match.id });
+    }
     try { const { createNotification } = require('./notifications'); createNotification('match_result', 'Kết quả đã được xác nhận: ' + match.team1Name + ' ' + report.score1 + '-' + report.score2 + ' ' + match.team2Name, { matchId: match.id }); } catch(e) {}
     res.json({ message: 'Đã duyệt báo cáo', report, match });
   } catch (e) { next(e); }

