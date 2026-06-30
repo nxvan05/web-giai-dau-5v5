@@ -1722,6 +1722,29 @@ async function generateSchedule() {
         function closeTeamDetail() {
             document.getElementById('team-modal').classList.add('hidden');
         }
+        function openCreateTeamModal() {
+            document.getElementById('create-team-modal').classList.remove('hidden');
+        }
+        function closeCreateTeamModal() {
+            document.getElementById('create-team-modal').classList.add('hidden');
+        }
+        async function submitCreateTeam() {
+            const name = document.getElementById('create-team-name').value.trim();
+            if (!name) return showToast('Nhập tên đội!', 'error');
+            if (name.length < 3) return showToast('Tên đội tối thiểu 3 ký tự!', 'error');
+            const type = document.getElementById('create-team-type').value;
+            try {
+                const team = await api('/api/teams/create-from-registration', {
+                    method: 'POST',
+                    body: { name, type, discordId: discordUser.discordId, displayName: discordUser.discordUsername }
+                });
+                showToast('Đã tạo đội ' + team.name + '!', 'success');
+                closeCreateTeamModal();
+                loadTeamsBrowser();
+            } catch(e) {
+                showToast('Lỗi: ' + e.message, 'error');
+            }
+        }
         async function confirmKickMember(teamName, targetDiscordId, targetName) {
             if (!confirm('Bạn có chắc chắn muốn đá "' + targetName + '" ra khỏi đội ' + teamName + ' không?')) return;
             try {
@@ -2605,7 +2628,8 @@ async function generateSchedule() {
                                 html += '<button onclick="renameTeam()" class="text-[10px] bg-valCyan/20 text-valCyan border border-valCyan/30 px-2 py-1.5 rounded-lg font-bold hover:bg-valCyan/30 transition"><i class="fa-solid fa-pen"></i></button>';
                                 html += '</div>';
                             } else {
-                                html += '<h4 class="text-white font-bold text-lg">' + escHtml(team.name) + '</h4>';
+                                const safeName = team.name.replace(/'/g, "\\'");
+                                html += '<h4 class="text-white font-bold text-lg cursor-pointer hover:text-valCyan transition" onclick="openTeamDetail(\'' + safeName + '\')">' + escHtml(team.name) + ' <i class="fa-solid fa-up-right-from-square text-[10px] text-gray-500 ml-1"></i></h4>';
                             }
 
                             const statusLabel = size === 5 ? '✅ HOÀN CHỈNH' : 'Đang tuyển';
@@ -2671,7 +2695,16 @@ async function generateSchedule() {
                             mySection.classList.add('hidden');
                         }
                     } else {
-                        mySection.classList.add('hidden');
+                        if (discordUser && myPlayer) {
+                            mySection.classList.remove('hidden');
+                            myContent.innerHTML = '<div class="text-center py-8">' +
+                                '<div class="text-4xl text-gray-600 mb-3"><i class="fa-solid fa-people-arrows"></i></div>' +
+                                '<p class="text-gray-400 text-sm mb-4">Bạn chưa có đội. Hãy tạo đội mới hoặc tham gia đội có sẵn!</p>' +
+                                '<button onclick="openCreateTeamModal()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-valCyan/30 transition"><i class="fa-solid fa-plus mr-1"></i>Tạo Đội Mới</button>' +
+                            '</div>';
+                        } else {
+                            mySection.classList.add('hidden');
+                        }
                     }
                 }
 
