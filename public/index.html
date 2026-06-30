@@ -222,9 +222,7 @@
                 <button onclick="switchTab('leaderboard-tab')" id="btn-leaderboard-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Bảng xếp hạng tuyển thủ + đội, click tên xem profile">
                     <i class="fa-solid fa-ranking-star mr-2"></i>Bảng XH
                 </button>
-                <button onclick="switchTab('bracket-tab')" id="btn-bracket-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Vòng Playoff tranh chức vô địch">
-                    <i class="fa-solid fa-diagram-project mr-2"></i>Playoff
-                </button>
+                <!-- Playoff merged into Lịch Đấu as sub-tab -->
                 <button onclick="switchTab('stream-tab')" id="btn-stream-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Streaming & Casting Booth">
                     <i class="fa-solid fa-tower-broadcast mr-2"></i>Stream Booth
                 </button>
@@ -1176,23 +1174,53 @@
         <section id="schedule-tab" class="tab-content hidden">
             <div class="max-w-5xl mx-auto" id="schedule-container">
                 <div class="bg-valCard border border-gray-800 p-4 sm:p-6 rounded-2xl shadow-xl mb-6" id="schedule-card">
-                    <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
-                        <i class="fa-solid fa-calendar-days text-valCyan text-xl"></i>
-                        <h3 class="font-display text-lg font-bold text-white uppercase flex-1">Lịch Thi Đấu</h3>
-                        <button onclick="toggleScheduleFullscreen()" id="btn-schedule-expand" class="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded-lg hover:bg-gray-800/50" title="Mở rộng">
-                            <i class="fa-solid fa-expand"></i>
+                    <!-- Sub-tabs -->
+                    <div class="flex gap-1 bg-valBg/60 border border-gray-800 p-1 rounded-xl mb-4 w-fit">
+                        <button onclick="switchScheduleSubTab('matches')" id="sched-sub-btn-matches" class="sched-sub-btn px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap bg-valCyan/20 text-valCyan flex items-center gap-1.5">
+                            <i class="fa-solid fa-list"></i> Vòng Bảng
                         </button>
-                        <button onclick="toggleScheduleFullscreen()" id="btn-schedule-collapse" class="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded-lg hover:bg-gray-800/50 hidden" title="Thu gọn">
-                            <i class="fa-solid fa-compress"></i>
+                        <button onclick="switchScheduleSubTab('playoff')" id="sched-sub-btn-playoff" class="sched-sub-btn px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap text-gray-400 hover:text-white flex items-center gap-1.5">
+                            <i class="fa-solid fa-diagram-project"></i> Playoff
                         </button>
                     </div>
-                    <div id="admin-schedule-controls"></div>
-                    <div id="schedule-list" class="schedule-match-list">
-                        <div class="text-center text-gray-500 text-sm py-8">
-                            <i class="fa-solid fa-calendar-xmark text-3xl mb-2"></i>
-                            <p>Chưa có trận đấu nào.</p>
+
+                    <div id="schedule-matches-section">
+                        <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                            <i class="fa-solid fa-calendar-days text-valCyan text-xl"></i>
+                            <h3 class="font-display text-lg font-bold text-white uppercase flex-1">Lịch Thi Đấu</h3>
+                            <button onclick="toggleScheduleFullscreen()" id="btn-schedule-expand" class="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded-lg hover:bg-gray-800/50" title="Mở rộng">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button onclick="toggleScheduleFullscreen()" id="btn-schedule-collapse" class="text-gray-500 hover:text-white transition text-sm px-2 py-1 rounded-lg hover:bg-gray-800/50 hidden" title="Thu gọn">
+                                <i class="fa-solid fa-compress"></i>
+                            </button>
+                        </div>
+                        <div id="admin-schedule-controls"></div>
+                        <div id="schedule-list" class="schedule-match-list">
+                            <div class="text-center text-gray-500 text-sm py-8">
+                                <i class="fa-solid fa-calendar-xmark text-3xl mb-2"></i>
+                                <p>Chưa có trận đấu nào.</p>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Bracket / Playoff -->
+                    <div id="schedule-playoff-section" class="hidden">
+                        <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                            <i class="fa-solid fa-diagram-project text-valCyan text-xl"></i>
+                            <h3 class="font-display text-lg font-bold text-white uppercase flex-1">Vòng Playoff</h3>
+                            <button id="btn-generate-playoff" onclick="generatePlayoff()" class="hidden text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-400/30 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-500/30 transition">
+                                <i class="fa-solid fa-shuffle mr-1"></i>Tạo Playoff từ BXH
+                            </button>
+                        </div>
+                        <div id="bracket-container" class="space-y-4">
+                            <div class="text-center text-gray-500 text-sm py-8">
+                                <i class="fa-solid fa-diagram-project text-3xl mb-2"></i>
+                                <p>Hoàn thành vòng bảng để tạo playoff.</p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </section>
@@ -1539,25 +1567,7 @@
         </div>
     </div>
 
-<section id="bracket-tab" class="tab-content hidden">
-    <div class="max-w-5xl mx-auto">
-        <div class="bg-valCard border border-gray-800 p-6 rounded-2xl shadow-xl mb-6">
-            <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
-                <i class="fa-solid fa-diagram-project text-valCyan text-xl"></i>
-                <h3 class="font-display text-lg font-bold text-white uppercase">Vòng Playoff</h3>
-                <button id="btn-generate-playoff" onclick="generatePlayoff()" class="hidden ml-auto text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-400/30 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-500/30 transition">
-                    <i class="fa-solid fa-shuffle mr-1"></i>Tạo Playoff từ BXH
-                </button>
-            </div>
-            <div id="bracket-container" class="space-y-4">
-                <div class="text-center text-gray-500 text-sm py-8">
-                    <i class="fa-solid fa-diagram-project text-3xl mb-2"></i>
-                    <p>Hoàn thành vòng bảng để tạo playoff.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
+
 
 <section id="stream-tab" class="tab-content hidden">
     <div class="max-w-6xl mx-auto">

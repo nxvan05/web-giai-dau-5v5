@@ -1174,6 +1174,28 @@
         }
 
         // === Schedule Tab ===
+        function switchScheduleSubTab(type) {
+            const matchesSection = document.getElementById('schedule-matches-section');
+            const playoffSection = document.getElementById('schedule-playoff-section');
+            const btnMatches = document.getElementById('sched-sub-btn-matches');
+            const btnPlayoff = document.getElementById('sched-sub-btn-playoff');
+            if (type === 'playoff') {
+                matchesSection?.classList.add('hidden');
+                playoffSection?.classList.remove('hidden');
+                btnMatches?.classList.remove('bg-valCyan/20', 'text-valCyan');
+                btnMatches?.classList.add('text-gray-400');
+                btnPlayoff?.classList.add('bg-valCyan/20', 'text-valCyan');
+                btnPlayoff?.classList.remove('text-gray-400');
+                loadBracket();
+            } else {
+                playoffSection?.classList.add('hidden');
+                matchesSection?.classList.remove('hidden');
+                btnPlayoff?.classList.remove('bg-valCyan/20', 'text-valCyan');
+                btnPlayoff?.classList.add('text-gray-400');
+                btnMatches?.classList.add('bg-valCyan/20', 'text-valCyan');
+                btnMatches?.classList.remove('text-gray-400');
+            }
+        }
         function renderSchedule() {
             const controls = document.getElementById('admin-schedule-controls');
             if (apiToken && controls) {
@@ -3457,7 +3479,7 @@ async function generateSchedule() {
             if (id === 'teams-tab') { loadTeamsBrowser(); }
             if (id === 'veto-tab') { loadVetoMatches(); }
             if (id === 'leaderboard-tab') { loadLeaderboard(); loadStandings(); }
-            if (id === 'bracket-tab') { loadBracket(); }
+            if (id === 'bracket-tab') { switchScheduleSubTab('playoff'); _baseSwitchTab('schedule-tab'); }
             if (id === 'stream-tab') {
                 await loadStreamBooth();
                 loadStreamArchive();
