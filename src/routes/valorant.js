@@ -62,8 +62,8 @@ router.post('/lookup', async (req, res) => {
 
     const data = await henrikRequest(`/valorant/v2/mmr/${reg}/${name}/${tag}`);
 
-    // Ưu tiên peak rank (highest_rank) hơn current rank
-    const rankSource = data.highest_rank?.patched_tier || data.current_data?.currenttierpatched;
+    // Dùng current rank, fallback peak rank nếu không có
+    const rankSource = data.current_data?.currenttierpatched || data.highest_rank?.patched_tier || 'Unknown';
     const rankInfo = parseRank(rankSource);
     res.json({
       riotId: `${data.name}#${data.tag}`,

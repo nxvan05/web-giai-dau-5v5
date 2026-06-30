@@ -281,6 +281,20 @@
             document.getElementById('profile-modal').classList.add('hidden');
         }
 
+        async function refreshPlayerRank(discordId) {
+            if (!discordUser || discordUser.discordId !== discordId) return showToast('Chỉ chủ tài khoản mới refresh được!', 'error');
+            const btn = document.querySelector('button[onclick*="refreshPlayerRank"]');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i>'; }
+            try {
+                const res = await api('/api/players/refresh-rank', { method: 'POST' });
+                showToast('Đã cập nhật rank: ' + res.rank, 'success');
+                openProfile(discordId);
+            } catch(e) {
+                showToast('Lỗi: ' + e.message, 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate mr-1"></i>Đồng bộ Rank'; }
+            }
+        }
+
         async function openProfile(discordId) {
             document.getElementById('profile-modal').classList.remove('hidden');
             const modalContent = document.querySelector('#profile-modal > div');
@@ -338,7 +352,8 @@
                     '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">Trận Mùa Này</span><span class="text-white font-mono font-bold text-sm">' + totalMatches_ + '</span></div>' +
                     '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">Đội</span><span class="text-valCyan font-mono font-bold text-sm truncate block">' + teamName + '</span></div>' +
                     '</div></div>' +
-                    '<div class="col-span-2 bg-valBg/60 border border-gray-800 p-3 rounded-xl"><div class="flex items-center gap-2"><i class="fa-solid fa-shield text-indigo-400"></i><span class="text-gray-500 text-[10px] uppercase tracking-wider">Discord</span></div><div class="flex items-center gap-2 mt-2"><span class="text-[10px] text-gray-500">ID:</span><span class="text-white font-mono text-xs">' + (p.discordId || '—') + '</span></div></div>';
+                    '<div class="col-span-2 bg-valBg/60 border border-gray-800 p-3 rounded-xl"><div class="flex items-center gap-2"><i class="fa-solid fa-shield text-indigo-400"></i><span class="text-gray-500 text-[10px] uppercase tracking-wider">Discord</span></div><div class="flex items-center gap-2 mt-2"><span class="text-[10px] text-gray-500">ID:</span><span class="text-white font-mono text-xs">' + (p.discordId || '—') + '</span></div>' +
+'<div class="mt-2"><button onclick="refreshPlayerRank(\'' + p.discordId + '\')" class="text-[10px] bg-valCyan/10 text-valCyan border border-valCyan/30 px-2.5 py-1 rounded-lg hover:bg-valCyan/20 transition"><i class="fa-solid fa-rotate mr-1"></i>Đồng bộ Rank</button></div></div>';
 
                 // Charts
                 destroyProfileCharts();

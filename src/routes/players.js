@@ -149,6 +149,31 @@ router.get('/by-team/:teamName', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Refresh rank from HenrikDev API
+router.post('/refresh-rank', discordAuth, async (req, res, next) => {
+  try {
+    const player = await prisma.player.findFirst({ where: { discordId: req.discordUser.discordId } });
+    if (!player) return res.status(404).json({ error: 'Không tìm thấy người chơi' });
+    if (!player.riotId || player.riotId === 'Unknown#000') return res.status(400).json({ error: 'Chưa có Riot ID' });
+    const parts = player.riotId.split('#');
+    const name = encodeURIComponent(parts[0]);
+    const tag = encodeURIComponent(parts.slice(1).join('#'));
+    const https = require('https');
+    const mmrData = await new Promise((resolve, reject) => {
+      const opts = {
+        hostname: 'api.henrikdev.xyz', path: `/valorant/v2/mmr/ap/${name}/${tag}`,
+        headers: { 'Authorization': process.env.HENRIKDEV_KEY || '' }
+      };
+      https.get(opts, resp => { let d = ''; resp.on('data', c => d += c); resp.on('end', () => { try { const j = JSON.parse(d); if (j.status === 200) resolve(j.data); else reject(new Error(j.errors?.[0]?.message || 'Lỗi API')); } catch(e) { reject(new Error('Không parse được dữ liệu')); } }); }).on('error', reject);
+    });
+    const currentRank = mmrData.current_data?.currenttierpatched || null;
+    const peakRank = mmrData.highest_rank?.patched_tier || null;
+    const newRank = currentRank || peakRank || 'Unknown';
+    await prisma.player.update({ where: { id: player.id }, data: { rank: newRank, peakRank: peakRank || player.peakRank } });
+    res.json({ rank: newRank, peakRank, currentRank });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/import', auth, async (req, res, next) => {
   try {
     const { players } = req.body;
