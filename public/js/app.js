@@ -2944,6 +2944,7 @@ async function generateSchedule() {
             if (!container) return;
             try {
                 const teams = await api('/api/teams/all');
+                const players = await api('/api/players').catch(() => []);
                 const complete = teams.filter(t => t.status === 'complete' || t.status === 'approved');
                 const recruiting = teams.filter(t => t.status === 'recruiting');
                 if (complete.length === 0) {
@@ -2953,17 +2954,30 @@ async function generateSchedule() {
                     for (const team of complete) {
                         const roster = JSON.parse(team.rosterJson || '[]');
                         const memberCount = roster.length;
+                        const safeName = team.name.replace(/'/g, "\\'");
                         html += `<div class="bg-valBg/60 border border-blue-500/30 rounded-xl p-4">
                             <div class="flex items-center justify-between mb-2">
-                                <h5 class="text-sm font-bold text-white">${team.name}</h5>
-                                <span class="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">✅ ${memberCount} NGƯỜI</span>
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <h5 class="text-sm font-bold text-white truncate cursor-pointer hover:text-valCyan" onclick="openTeamDetail('${safeName}')" title="Xem chi tiết">${team.name}</h5>
+                                    <button onclick="adminRenameTeam('${safeName}')" class="text-gray-500 hover:text-valCyan text-[10px]" title="Đổi tên"><i class="fa-solid fa-pen"></i></button>
+                                    <button onclick="if(confirm('Xoá đội ${team.name}?'))deleteTeam('${safeName}')" class="text-gray-500 hover:text-valRed text-[10px]" title="Xoá đội"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                                <span class="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30 shrink-0">✅ ${memberCount} NGƯỜI</span>
                             </div>
                             <div class="text-[10px] text-gray-400 space-y-1">`;
                         for (const discordId of roster) {
-                            html += `<div class="flex justify-between"><span>${discordId}</span></div>`;
+                            const p = players.find(pl => pl.discordId === discordId);
+                            const pName = p ? p.displayName : discordId;
+                            html += `<div class="flex justify-between items-center">
+                                <span class="truncate">${pName}</span>
+                                <button onclick="adminKickMember('${safeName}','${discordId}')" class="text-gray-600 hover:text-valRed text-[9px] ml-2 shrink-0" title="Đá khỏi đội"><i class="fa-solid fa-user-minus"></i></button>
+                            </div>`;
                         }
                         html += `</div>
                             <div class="mt-2 text-[10px] text-gray-500">Tổng: ${team.pts || 0}đ · Đội trưởng: ${team.captainDiscordId || 'N/A'}</div>
+                            <div class="mt-2 flex gap-2">
+                                <button onclick="adminAddToTeam('${safeName}')" class="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-2 py-1 rounded-lg hover:bg-emerald-500/30 transition"><i class="fa-solid fa-plus mr-0.5"></i>Thêm</button>
+                            </div>
                         </div>`;
                     }
                     html += '</div>';
@@ -2979,14 +2993,56 @@ async function generateSchedule() {
                             const roster = JSON.parse(t.rosterJson || '[]');
                             const colors = { 1: '#6B7280', 2: '#EAB308', 3: '#F97316' };
                             const color = colors[roster.length] || '#6B7280';
+                            const safeName = t.name.replace(/'/g, "\\'");
                             return `<div class="bg-valBg/60 border border-gray-800 rounded-xl p-3" style="border-left: 3px solid ${color}">
-                                <div class="text-xs font-bold text-white">${t.name}</div>
-                                <div class="text-[10px] text-gray-400">${roster.length} người · ${t.pts || 0}đ</div>
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <div class="text-xs font-bold text-white">${t.name}</div>
+                                        <div class="text-[10px] text-gray-400">${roster.length} người · ${t.pts || 0}đ</div>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button onclick="adminAddToTeam('${safeName}')" class="text-gray-500 hover:text-emerald-400 text-[10px]" title="Thêm người"><i class="fa-solid fa-user-plus"></i></button>
+                                        <button onclick="if(confirm('Xoá đội ${t.name}?'))deleteTeam('${safeName}')" class="text-gray-500 hover:text-valRed text-[10px]" title="Xoá đội"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </div>
                             </div>`;
                         }).join('');
                     }
                 }
             } catch(e) { container.innerHTML = '<div class="text-center py-4 text-gray-500 text-xs">Lỗi tải dữ liệu</div>'; }
+        }
+        async function adminAddToTeam(teamName) {
+            const id = prompt('Nhập Discord ID của người chơi để thêm vào đội ' + teamName + ':');
+            if (!id) return;
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/admin-add-player', { method: 'POST', body: { discordId: id } });
+                showToast('Đã thêm vào đội!', 'success');
+                loadCompleteTeams();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+        async function adminKickMember(teamName, discordId) {
+            if (!confirm('Đá người chơi này khỏi đội?')) return;
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/players/' + encodeURIComponent(discordId), { method: 'DELETE' });
+                showToast('Đã đá khỏi đội!', 'success');
+                loadCompleteTeams();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+        async function adminRenameTeam(teamName) {
+            const newName = prompt('Nhập tên mới cho đội ' + teamName + ':');
+            if (!newName || newName === teamName) return;
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/rename', { method: 'PUT', body: { newName } });
+                showToast('Đã đổi tên thành ' + newName, 'success');
+                loadCompleteTeams();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
+        }
+        async function deleteTeam(teamName) {
+            try {
+                await api('/api/teams/' + encodeURIComponent(teamName), { method: 'DELETE' });
+                showToast('Đã xoá đội!', 'success');
+                loadCompleteTeams();
+            } catch(e) { showToast('Lỗi: ' + e.message, 'error'); }
         }
 
         async function loadBracket() {
