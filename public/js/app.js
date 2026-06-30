@@ -815,19 +815,28 @@
             }
         }
 
-        function toggleTeamNameInput() {
-            const val = document.getElementById('reg-team-option').value;
+        function selectRegType(type) {
+            document.getElementById('reg-type').value = type;
+            document.querySelectorAll('.reg-type-btn').forEach(b => {
+                b.classList.toggle('border-valCyan', b.dataset.value === type);
+                b.classList.toggle('bg-valCyan/10', b.dataset.value === type);
+                b.classList.toggle('border-gray-700', b.dataset.value !== type);
+            });
             const field = document.getElementById('reg-team-name-field');
             const input = document.getElementById('reg-team-name');
-            if (val === 'create') {
-                field.classList.remove('hidden');
-                input.required = true;
-            } else {
+            const hint = document.getElementById('reg-slots-hint');
+            if (type === 'solo') {
                 field.classList.add('hidden');
                 input.required = false;
                 input.value = '';
+            } else {
+                field.classList.remove('hidden');
+                input.required = true;
+                if (hint) hint.textContent = type === 'duo' ? '(2 slot cố định)' : '(3 slot cố định)';
             }
         }
+        // Preserve backward compat
+        function toggleTeamNameInput() { selectRegType('solo'); }
 
         async function autoFillRegisterForm() {
             const status = document.getElementById('register-discord-status');
@@ -894,12 +903,14 @@
                 rankSelect.disabled = true;
                 rankSelect.classList.add('opacity-60', 'cursor-not-allowed');
                 updateFormPoints();
-                resultEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-lock mr-1"></i>${data.rank} · ${data.elo} elo · ${data.pts}đ <span class="text-gray-500">(Peak: ${data.peakRank || data.rank})</span></span>`;
+                document.getElementById('form-points-badge').innerText = data.pts;
+                resultEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-lock mr-1"></i>${data.rank} · ${data.elo} elo · ${data.pts}đ <span class="text-gray-500">(Peak: ${data.peakRank || data.rank} → ${data.pts}đ)</span></span>`;
             } catch(e) {
                 resultEl.innerHTML = `<span class="text-valRed"><i class="fa-solid fa-circle-exclamation mr-1"></i>${e.message}</span>`;
             }
         }
         document.addEventListener('DOMContentLoaded', function() {
+            selectRegType('solo');
             const riotInput = document.getElementById('reg-riotid');
             if (riotInput) {
                 let debounceTimer;
@@ -916,9 +927,9 @@
         async function handleRegistration(e) {
             e.preventDefault();
             if (!discordUser) { showToast('Vui lòng đăng nhập Discord trước!', 'error'); return; }
-            const teamOption = document.getElementById('reg-team-option').value;
+            const regType = document.getElementById('reg-type').value;
             const teamName = document.getElementById('reg-team-name').value.trim();
-            if (teamOption === 'create' && !teamName) { showToast('Vui lòng nhập tên đội!', 'error'); return; }
+            if (regType !== 'solo' && !teamName) { showToast('Vui lòng nhập tên đội!', 'error'); return; }
             const playerPts = parseInt(document.getElementById('form-points-badge').innerText) || 3;
             const body = {
                 displayName: discordUser.discordUsername,
@@ -926,25 +937,26 @@
                 riotId: document.getElementById('reg-riotid').value.trim(),
                 rank: document.getElementById('reg-rank').value,
                 role: document.getElementById('reg-role').value,
-                type: 'Solo',
+                type: regType.charAt(0).toUpperCase() + regType.slice(1),
                 pts: playerPts,
                 peakRank: lastRiotLookup?.peakRank || null
             };
             try {
                 const player = await api('/api/players', { method: 'POST', body });
-                if (teamOption === 'create' && teamName) {
+                if (regType !== 'solo' && teamName) {
                     await api('/api/teams/create-from-registration', { method: 'POST', body: {
                         name: teamName,
                         discordId: discordUser.discordId,
                         displayName: discordUser.discordUsername,
                         pts: playerPts,
-                        type: 'duo'
+                        type: regType
                     }});
                 }
                 showToast('Đăng ký thành công!', 'success');
                 document.getElementById('registration-form').reset();
                 document.getElementById('form-points-badge').innerText = '3';
-                document.getElementById('reg-team-name-field').classList.add('hidden');
+                selectRegType('solo');
+                document.getElementById('reg-type').value = 'solo';
                 autoFillRegisterForm();
                 loadTeamsBrowser();
             } catch(e) {
@@ -2654,7 +2666,7 @@ async function generateSchedule() {
                                 html += '<h4 class="text-white font-bold text-lg cursor-pointer hover:text-valCyan transition" onclick="openTeamDetail(\'' + safeName + '\')">' + escHtml(team.name) + ' <i class="fa-solid fa-up-right-from-square text-[10px] text-gray-500 ml-1"></i></h4>';
                             }
 
-                            const statusLabel = size === 5 ? '✅ HOÀN CHỈNH' : 'Đang tuyển';
+                            const statusLabel = size === 5 ? '✅ HOÀN CHỈNH' : '⏳ CHỜ DUYỆT';
                             const statusColor = size === 5 ? 'text-emerald-400' : 'text-amber-400';
                             html += '<div class="flex items-center gap-3"><span class="text-[10px] ' + statusColor + ' font-bold uppercase">' + statusLabel + '</span>';
                             html += '<span class="text-[10px] text-gray-500">' + size + '/5 thành viên</span>';
@@ -2749,18 +2761,10 @@ async function generateSchedule() {
                             borderColor = 'border-blue-500/50';
                             badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-400/30';
                             badgeText = '✅ HOÀN CHỈNH';
-                        } else if (size === 3) {
-                            borderColor = 'border-orange-500/50';
-                            badgeColor = 'bg-orange-500/20 text-orange-400 border-orange-400/30';
-                            badgeText = '3 người';
-                        } else if (size === 2) {
-                            borderColor = 'border-yellow-500/50';
-                            badgeColor = 'bg-yellow-500/20 text-yellow-400 border-yellow-400/30';
-                            badgeText = '2 người';
                         } else {
-                            borderColor = 'border-gray-600/50';
-                            badgeColor = 'bg-gray-500/20 text-gray-400 border-gray-400/30';
-                            badgeText = '1 người';
+                            borderColor = 'border-amber-500/50 animate-pulse';
+                            badgeColor = 'bg-amber-500/20 text-amber-400 border-amber-400/30';
+                            badgeText = '⏳ CHỜ DUYỆT ' + size + '/5';
                         }
 
                         const rosterPlayers = team.rosterPlayers || [];
@@ -2945,10 +2949,59 @@ async function generateSchedule() {
             try {
                 const teams = await api('/api/teams/all');
                 const players = await api('/api/players').catch(() => []);
-                const complete = teams.filter(t => t.status === 'complete' || t.status === 'approved');
-                const recruiting = teams.filter(t => t.status === 'recruiting');
+                // Pending = incomplete teams (< 5 members)
+                const pending = teams.filter(t => {
+                    const r = JSON.parse(t.rosterJson || '[]');
+                    return r.length < 5;
+                });
+                const complete = teams.filter(t => {
+                    const r = JSON.parse(t.rosterJson || '[]');
+                    return r.length === 5;
+                });
+                // === Pending Teams (Đội Chờ Duyệt) ===
+                const pendingCountBadge = document.getElementById('admin-pending-count');
+                if (pendingCountBadge) pendingCountBadge.textContent = pending.length + ' đội';
+                const pendingEl = document.getElementById('admin-pending-teams');
+                if (pendingEl) {
+                    if (pending.length === 0) {
+                        pendingEl.innerHTML = '<div class="text-center py-4 text-gray-500 text-xs">Không có đội chờ duyệt</div>';
+                    } else {
+                        let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+                        for (const t of pending) {
+                            const roster = JSON.parse(t.rosterJson || '[]');
+                            const safeName = t.name.replace(/'/g, "\\'");
+                            html += `<div class="bg-valBg/60 border border-amber-500/40 rounded-xl p-3">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="text-amber-400 text-[10px] animate-pulse">⏳</span>
+                                        <span class="text-xs font-bold text-white truncate">${t.name}</span>
+                                        <button onclick="adminRenameTeam('${safeName}')" class="text-gray-500 hover:text-valCyan text-[10px]" title="Đổi tên"><i class="fa-solid fa-pen"></i></button>
+                                        <button onclick="if(confirm('Xoá đội ${t.name}?'))deleteTeam('${safeName}')" class="text-gray-500 hover:text-valRed text-[10px]" title="Xoá đội"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                    <span class="text-[9px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30 shrink-0">${roster.length}/5 người</span>
+                                </div>
+                                <div class="text-[10px] text-gray-400 space-y-0.5">`;
+                            for (const discordId of roster) {
+                                const p = players.find(pl => pl.discordId === discordId);
+                                const pName = p ? p.displayName : discordId;
+                                html += `<div class="flex justify-between items-center">
+                                    <span class="truncate">${pName}</span>
+                                    <button onclick="adminKickMember('${safeName}','${discordId}')" class="text-gray-600 hover:text-valRed text-[9px] ml-2 shrink-0" title="Đá khỏi đội"><i class="fa-solid fa-user-minus"></i></button>
+                                </div>`;
+                            }
+                            html += `</div>
+                                <div class="mt-2 flex gap-2">
+                                    <button onclick="adminAddToTeam('${safeName}')" class="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-2 py-1 rounded-lg hover:bg-emerald-500/30 transition"><i class="fa-solid fa-plus mr-0.5"></i>Thêm người</button>
+                                </div>
+                            </div>`;
+                        }
+                        html += '</div>';
+                        pendingEl.innerHTML = html;
+                    }
+                }
+                // === Complete Teams ===
                 if (complete.length === 0) {
-                    container.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm">Chưa có đội hoàn chỉnh. Bấm "Gom Đội" để tạo.</div>';
+                    container.innerHTML = '<div class="text-center py-8 text-gray-500 text-sm">Chưa có đội hoàn chỉnh.</div>';
                 } else {
                     let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
                     for (const team of complete) {
@@ -2982,32 +3035,6 @@ async function generateSchedule() {
                     }
                     html += '</div>';
                     container.innerHTML = html;
-                }
-                // Recruiting teams
-                const recContainer = document.getElementById('admin-recruiting-teams');
-                if (recContainer) {
-                    if (recruiting.length === 0) {
-                        recContainer.innerHTML = '<div class="col-span-full text-center py-4 text-gray-500 text-xs">Không có đội nào đang tuyển</div>';
-                    } else {
-                        recContainer.innerHTML = recruiting.map(t => {
-                            const roster = JSON.parse(t.rosterJson || '[]');
-                            const colors = { 1: '#6B7280', 2: '#EAB308', 3: '#F97316' };
-                            const color = colors[roster.length] || '#6B7280';
-                            const safeName = t.name.replace(/'/g, "\\'");
-                            return `<div class="bg-valBg/60 border border-gray-800 rounded-xl p-3" style="border-left: 3px solid ${color}">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <div class="text-xs font-bold text-white">${t.name}</div>
-                                        <div class="text-[10px] text-gray-400">${roster.length} người · ${t.pts || 0}đ</div>
-                                    </div>
-                                    <div class="flex gap-1">
-                                        <button onclick="adminAddToTeam('${safeName}')" class="text-gray-500 hover:text-emerald-400 text-[10px]" title="Thêm người"><i class="fa-solid fa-user-plus"></i></button>
-                                        <button onclick="if(confirm('Xoá đội ${t.name}?'))deleteTeam('${safeName}')" class="text-gray-500 hover:text-valRed text-[10px]" title="Xoá đội"><i class="fa-solid fa-trash"></i></button>
-                                    </div>
-                                </div>
-                            </div>`;
-                        }).join('');
-                    }
                 }
             } catch(e) { container.innerHTML = '<div class="text-center py-4 text-gray-500 text-xs">Lỗi tải dữ liệu</div>'; }
         }

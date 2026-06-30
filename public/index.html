@@ -638,16 +638,18 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Tham Gia *</label>
-                            <select id="reg-team-option" onchange="toggleTeamNameInput()" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
-                                <option value="free">Đăng ký tự do (chưa có đội)</option>
-                                <option value="create">Tạo đội mới (tôi là đội trưởng)</option>
-                            </select>
+                            <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Hình Thức *</label>
+                            <div class="flex gap-2" id="reg-type-select">
+                                <button type="button" data-value="solo" onclick="selectRegType('solo')" class="reg-type-btn flex-1 bg-valBg border border-gray-700 hover:border-valCyan rounded-xl px-3 py-2.5 text-white text-xs font-bold transition text-center">Solo <span class="block text-[9px] text-gray-500 font-normal mt-0.5">Tự do</span></button>
+                                <button type="button" data-value="duo" onclick="selectRegType('duo')" class="reg-type-btn flex-1 bg-valBg border border-gray-700 hover:border-valCyan rounded-xl px-3 py-2.5 text-white text-xs font-bold transition text-center">Duo <span class="block text-[9px] text-gray-500 font-normal mt-0.5">2 slot</span></button>
+                                <button type="button" data-value="trio" onclick="selectRegType('trio')" class="reg-type-btn flex-1 bg-valBg border border-gray-700 hover:border-valCyan rounded-xl px-3 py-2.5 text-white text-xs font-bold transition text-center">Trio <span class="block text-[9px] text-gray-500 font-normal mt-0.5">3 slot</span></button>
+                            </div>
+                            <input type="hidden" id="reg-type" value="solo">
                         </div>
                     </div>
 
                     <div id="reg-team-name-field" class="hidden">
-                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Tên đội *</label>
+                        <label class="block text-xs font-semibold text-gray-300 uppercase mb-1">Tên đội * <span id="reg-slots-hint" class="text-[9px] text-gray-500 font-normal">(2 slot cố định)</span></label>
                         <input type="text" id="reg-team-name" placeholder="VD: Team Alpha" class="w-full bg-valBg border border-gray-800 focus:border-valRed rounded-xl px-4 py-2.5 text-white outline-none">
                         <p id="reg-team-name-error" class="text-[10px] text-valRed mt-1 hidden"></p>
                     </div>
@@ -880,19 +882,20 @@
                         </div>
                     </div>
 
-                    <!-- Complete Teams List -->
-                    <div id="complete-teams-list" class="space-y-3 mb-6">
-                        <div class="text-center py-8 text-gray-500 text-sm">Chưa có đội hoàn chỉnh. Bấm "Gom Đội" để tạo.</div>
-                    </div>
-
-                    <!-- Mini team browser for recruiting teams -->
+                    <!-- Pending Teams (Đội Chờ Duyệt) -->
                     <div class="mb-4">
-                        <h4 class="text-xs font-bold text-yellow-400 uppercase mb-2 flex items-center gap-1">
-                            <i class="fa-solid fa-people-group"></i> Đội Đang Tuyển (1-3 người)
+                        <h4 class="text-xs font-bold text-amber-400 uppercase mb-2 flex items-center gap-1">
+                            <i class="fa-solid fa-hourglass-half"></i> Đội Chờ Duyệt (chưa đủ 5 người)
+                            <span id="admin-pending-count" class="text-[9px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full"></span>
                         </h4>
-                        <div id="admin-recruiting-teams" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div id="admin-pending-teams" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div class="col-span-full text-center py-4 text-gray-500 text-xs">Đang tải...</div>
                         </div>
+                    </div>
+
+                    <!-- Complete Teams List -->
+                    <div id="complete-teams-list" class="space-y-3 mb-6">
+                        <div class="text-center py-8 text-gray-500 text-sm">Chưa có đội hoàn chỉnh.</div>
                     </div>
 
                     <!-- Thay người -->
