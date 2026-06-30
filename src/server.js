@@ -135,12 +135,9 @@ const bcrypt = require('bcryptjs');
 (async () => {
   try {
     const prisma = require('./utils/prisma');
-    const existing = await prisma.admin.findUnique({ where: { username: 'evan' } });
-    if (!existing) {
-      const hash = await bcrypt.hash('evankk123', 12);
-      await prisma.admin.create({ data: { username: 'evan', password: hash } });
-      console.log('Admin seed: evan / evankk123');
-    }
+    const hash = await bcrypt.hash('evankk123', 12);
+    await prisma.admin.upsert({ where: { username: 'evan' }, update: { password: hash }, create: { username: 'evan', password: hash } });
+    console.log('Admin seed: evan / evankk123');
   } catch (e) {
     console.error('Admin seed error:', e.message);
   }
