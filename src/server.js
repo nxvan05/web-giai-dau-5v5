@@ -130,6 +130,22 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
 
+// Auto-seed admin account
+const bcrypt = require('bcryptjs');
+(async () => {
+  try {
+    const prisma = require('./utils/prisma');
+    const existing = await prisma.admin.findUnique({ where: { username: 'evan' } });
+    if (!existing) {
+      const hash = await bcrypt.hash('evankk123', 12);
+      await prisma.admin.create({ data: { username: 'evan', password: hash } });
+      console.log('Admin seed: evan / evankk123');
+    }
+  } catch (e) {
+    console.error('Admin seed error:', e.message);
+  }
+})();
+
 async function shutdown(signal) {
   console.log(`Received ${signal}, shutting down gracefully...`);
   server.close(() => console.log('HTTP server closed'));
