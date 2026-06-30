@@ -2792,10 +2792,12 @@ async function generateSchedule() {
 
                 // === Free Agents Section ===
                 if (faContainer) {
+                    const faBadge = document.getElementById('fa-count-badge');
                     try {
                         const agents = await api('/api/players/free-agents');
+                        if (faBadge) faBadge.textContent = (agents || []).length;
                         if (!agents || agents.length === 0) {
-                            faContainer.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500"><i class="fa-solid fa-user-slash text-2xl mb-2"></i><p>Không có tuyển thủ tự do</p></div>';
+                            faContainer.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fa-solid fa-user-slash text-2xl mb-2"></i><p>Không có tuyển thủ tự do</p></div>';
                         } else {
                             faContainer.innerHTML = agents.map(p => {
                                 const initial = (p.displayName || '?').charAt(0).toUpperCase();
@@ -2807,7 +2809,8 @@ async function generateSchedule() {
                             }).join('');
                         }
                     } catch(e) {
-                        faContainer.innerHTML = '<div class="col-span-full text-center py-8 text-red-400">Lỗi tải danh sách</div>';
+                        if (faBadge) faBadge.textContent = '!';
+                        faContainer.innerHTML = '<div class="text-center py-8 text-red-400">Lỗi tải danh sách</div>';
                     }
                 }
 
@@ -3452,7 +3455,6 @@ async function generateSchedule() {
             if (id === 'profile-tab') { loadPlayerProfile(); }
             if (id === 'schedule-tab') { renderSchedule(); }
             if (id === 'teams-tab') { loadTeamsBrowser(); }
-            if (id === 'freeagents-tab') { loadFreeAgentsBrowser(); }
             if (id === 'veto-tab') { loadVetoMatches(); }
             if (id === 'leaderboard-tab') { loadLeaderboard(); loadStandings(); }
             if (id === 'bracket-tab') { loadBracket(); }
