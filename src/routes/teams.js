@@ -55,7 +55,7 @@ router.post('/create-from-registration', orAuth, async (req, res, next) => {
 });
 
 // Admin: auto-draft teams into 5-player teams
-router.post('/admin/draft', async (req, res, next) => {
+router.post('/admin/draft', auth, async (req, res, next) => {
   try {
     const teams = await prisma.team.findMany({ where: { status: 'recruiting' } });
     const allPlayers = [];
@@ -202,11 +202,10 @@ router.post('/:name/leave', discordAuth, async (req, res, next) => {
 });
 
 // Cancel join request
-router.post('/:name/requests/cancel', async (req, res, next) => {
+router.post('/:name/requests/cancel', discordAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
-    const { discordId } = req.body;
-    if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
+    const discordId = req.discordUser.discordId;
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
     const joinReq = await prisma.joinRequest.findFirst({
@@ -219,11 +218,10 @@ router.post('/:name/requests/cancel', async (req, res, next) => {
 });
 
 // Disband team (captain only)
-router.delete('/:name/disband', async (req, res, next) => {
+router.delete('/:name/disband', discordAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
-    const { discordId } = req.body;
-    if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
+    const discordId = req.discordUser.discordId;
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
     if (team.captainDiscordId !== discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới giải tán được' });

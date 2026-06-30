@@ -1023,7 +1023,7 @@
                 const teamName = p.teamId || '';
                 const avatarUrl = p.discordAvatar ? 'https://cdn.discordapp.com/avatars/' + p.discordId + '/' + p.discordAvatar + '.png?size=32' : '';
                 const rankEmoji = {'Iron (Sắt)':'🥉','Bronze (Đồng)':'🥉','Silver (Bạc)':'🥈','Gold (Vàng)':'🥇','Platinum (Bạch Kim)':'💎','Diamond (Kim Cương)':'💎','Ascendant (Thượng Nhân)':'🔮','Immortal (Bất Tử)':'👑'}[rank] || '';
-                c.innerHTML += `<div class="bg-valBg/80 rounded-lg border border-gray-800 ${drafted?'opacity-50':''}" data-player-discord="${p.discordId}" data-player-name="${name}" data-player-riot="${p.riotId}">
+                listContainer.innerHTML += `<div class="bg-valBg/80 rounded-lg border border-gray-800 ${drafted?'opacity-50':''}" data-player-discord="${p.discordId}" data-player-name="${name}" data-player-riot="${p.riotId}">
                     <div class="flex justify-between items-center p-2.5 cursor-pointer" onclick="document.getElementById('player-detail-${idx}').classList.toggle('hidden')">
                         <div class="flex items-center gap-2">
                             ${avatarUrl ? `<img src="${avatarUrl}" class="w-6 h-6 rounded-full border border-gray-700 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ">` : `<div class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] text-gray-600 cursor-pointer hover:ring-2 hover:ring-valCyan transition" onclick="event.stopPropagation();openProfile('${p.discordId}')" title="Xem hồ sơ"><i class="fa-solid fa-user"></i></div>`}
@@ -2737,7 +2737,7 @@ async function generateSchedule() {
             if (!discordUser) return showToast('Cần đăng nhập Discord!', 'error');
             if (!pendingRequestsMap[teamName]) return showToast('Không tìm thấy đơn xin vào đội này', 'error');
             try {
-                await api('/api/teams/' + encodeURIComponent(teamName) + '/requests/' + pendingRequestsMap[teamName] + '/cancel', { method: 'PUT' });
+                await api('/api/teams/' + encodeURIComponent(teamName) + '/requests/cancel', { method: 'POST', body: { discordId: discordUser.discordId } });
                 delete pendingRequestsMap[teamName];
                 showToast('Đã hủy đơn xin vào đội', 'info');
                 loadTeamsBrowser();
@@ -2802,7 +2802,7 @@ async function generateSchedule() {
             try {
                 const team = allTeams.find(t => t.name === currentPlayerTeam);
                 if (!team) return showToast('Không tìm thấy đội!', 'error');
-                await api('/api/teams/' + encodeURIComponent(team.name) + '/disband', { method: 'DELETE' });
+                await api('/api/teams/' + encodeURIComponent(team.name) + '/disband', { method: 'DELETE', body: { discordId: discordUser.discordId } });
                 showToast('Đã giải tán đội!', 'success');
                 currentPlayerTeam = null;
                 loadTeamsBrowser();
