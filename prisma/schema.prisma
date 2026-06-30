@@ -31,6 +31,7 @@ model Player {
   wins          Int      @default(0)
   losses        Int      @default(0)
   mvps          Int      @default(0)
+  achievements  String?  @default("[]")
   teamId        String?
   createdAt     DateTime @default(now())
 }

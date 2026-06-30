@@ -4,6 +4,7 @@ const { getIO } = require('../utils/socket');
 const { notifyMatchResult } = require('./webhookController');
 const { logAction } = require('../utils/audit');
 const { applyEloChanges } = require('../utils/elo');
+const { checkAndAwardAchievements } = require('../utils/achievements');
 
 exports.getAll = async (req, res) => {
   const matches = await prisma.match.findMany({ orderBy: { scheduledAt: 'asc' } });
@@ -88,7 +89,10 @@ exports.setMvp = async (req, res, next) => {
     await prisma.match.update({ where: { id }, data: { mvpDiscordId: discordId || null, mvpPlayerName: playerName || null } });
     if (discordId) {
       const player = await prisma.player.findFirst({ where: { discordId } });
-      if (player) await prisma.player.update({ where: { id: player.id }, data: { mvps: { increment: 1 } } });
+      if (player) {
+          await prisma.player.update({ where: { id: player.id }, data: { mvps: { increment: 1 } } });
+          await checkAndAwardAchievements(discordId);
+      }
     }
 
     const io = getIO();

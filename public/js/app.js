@@ -344,7 +344,31 @@
                     '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">Đội</span><span class="text-valCyan font-mono font-bold text-sm truncate block">' + teamName + '</span></div>' +
                     '</div></div>' +
                     '<div class="col-span-2 bg-valBg/60 border border-gray-800 p-3 rounded-xl"><div class="flex items-center gap-2"><i class="fa-solid fa-shield text-indigo-400"></i><span class="text-gray-500 text-[10px] uppercase tracking-wider">Discord</span></div><div class="flex items-center gap-2 mt-2"><span class="text-[10px] text-gray-500">ID:</span><span class="text-white font-mono text-xs">' + (p.discordId || '—') + '</span></div>' +
-'<div class="mt-2"><button onclick="refreshPlayerRank(\'' + p.discordId + '\')" class="text-[10px] bg-valCyan/10 text-valCyan border border-valCyan/30 px-2.5 py-1 rounded-lg hover:bg-valCyan/20 transition"><i class="fa-solid fa-rotate mr-1"></i>Đồng bộ Rank</button></div></div>';
+                '<div class="mt-2"><button onclick="refreshPlayerRank(\'' + p.discordId + '\')" class="text-[10px] bg-valCyan/10 text-valCyan border border-valCyan/30 px-2.5 py-1 rounded-lg hover:bg-valCyan/20 transition"><i class="fa-solid fa-rotate mr-1"></i>Đồng bộ Rank</button></div></div>';
+
+                // Achievements
+                const achievementsDef = {
+                    'first_blood': { name: 'First Blood', icon: 'fa-solid fa-droplet', color: 'text-red-500 bg-red-500/10 border-red-500/30' },
+                    'ace_machine': { name: 'Ace Machine', icon: 'fa-solid fa-crosshairs', color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30' },
+                    'unbreakable': { name: 'Unbreakable', icon: 'fa-solid fa-shield-halved', color: 'text-blue-400 bg-blue-400/10 border-blue-400/30' },
+                    'champion': { name: 'Champion', icon: 'fa-solid fa-crown', color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30' }
+                };
+                
+                let achvArr = [];
+                try { achvArr = JSON.parse(p.achievements || '[]'); } catch (e) {}
+                const achvContainer = document.getElementById('profile-achievements');
+                if (achvArr.length > 0) {
+                    achvContainer.innerHTML = achvArr.map(id => {
+                        const def = achievementsDef[id];
+                        if (!def) return '';
+                        return '<div class="flex items-center gap-2 border px-3 py-1.5 rounded-lg ' + def.color + ' tooltip-trigger cursor-help">' +
+                               '<i class="' + def.icon + '"></i>' +
+                               '<span class="font-bold text-[11px] uppercase">' + def.name + '</span>' +
+                               '</div>';
+                    }).join('');
+                } else {
+                    achvContainer.innerHTML = '<div class="text-gray-500 text-[10px] italic w-full text-center py-2 bg-valBg/50 rounded-lg">Chưa có huy hiệu nào</div>';
+                }
 
                 // Charts
                 destroyProfileCharts();

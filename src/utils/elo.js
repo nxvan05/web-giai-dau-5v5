@@ -1,4 +1,5 @@
 const prisma = require('./prisma');
+const { checkAndAwardAchievements } = require('./achievements');
 
 const ELO_K_FACTOR = 32;
 
@@ -46,6 +47,7 @@ async function applyEloChanges(matchId, team1Name, team2Name, winner) {
     const newElo = p.elo + winnerDelta;
     await prisma.player.update({ where: { id: p.id }, data: { elo: newElo, wins: { increment: 1 } } });
     await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: newElo, delta: winnerDelta, matchId, reason: 'win' } });
+    await checkAndAwardAchievements(p.discordId);
   }
   for (const p of losingTeam) {
     const newElo = p.elo + loserDelta;

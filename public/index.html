@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0b0e14">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <link rel="manifest" href="/manifest.json">
     <title>Evan Cup - Cổng Điều Hành Giải Đấu 5v5</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1540,6 +1546,7 @@
             </div>
             <div class="p-4 space-y-4 text-xs" id="profile-content">
                 <div class="grid grid-cols-2 gap-3" id="profile-info"></div>
+                <div id="profile-achievements" class="flex flex-wrap gap-2 mb-2"></div>
                 <div class="grid grid-cols-2 gap-3" id="profile-kda-charts">
                     <div class="bg-valBg border border-gray-800 p-3 rounded-xl">
                         <h4 class="font-bold text-white mb-2">KDA</h4>
