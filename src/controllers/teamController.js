@@ -26,7 +26,9 @@ exports.listAll = async (req, res, next) => {
     try {
       const jwt = require('jsonwebtoken');
       const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+      const discord = req.cookies?.discord_token;
       if (token) { jwt.verify(token, process.env.JWT_SECRET); authed = true; }
+      if (!authed && discord) { const d = jwt.verify(discord, process.env.JWT_SECRET); if (d.type === 'discord') authed = true; }
     } catch (_) {}
     const where = authed ? {} : { status: 'approved' };
     const teams = await prisma.team.findMany({ where, orderBy: { createdAt: 'desc' } });

@@ -55,15 +55,18 @@ exports.updateResult = async (req, res) => {
   });
 
   if (winner && existing.round === 'semifinal') {
-    const allSemis = await prisma.match.findMany({ where: { round: 'semifinal', status: 'completed' } });
-    if (allSemis.length === 2) {
-      const finalMatch = await prisma.match.findFirst({ where: { round: 'final' } });
-      const finalT1 = allSemis.find(m => m.id !== existing.id)?.winner;
-      if (finalMatch && finalT1) {
-        await prisma.match.update({
-          where: { id: finalMatch.id },
-          data: { team1Name: finalT1, team2Name: winner, status: 'pending' }
-        });
+    const finalMatch = await prisma.match.findFirst({ where: { round: 'final' } });
+    if (finalMatch) {
+      const updateData = {};
+      if (finalMatch.team1Name === 'TBD1' || finalMatch.team1Name === 'TBD2') {
+        updateData.team1Name = winner;
+      } else {
+        updateData.team2Name = winner;
+      }
+      if (Object.keys(updateData).length > 0) {
+        await prisma.match.update({ where: { id: finalMatch.id }, data: updateData });
+        const io2 = getIO();
+        if (io2) io2.emit('bracket:generated', {});
       }
     }
   }
@@ -139,75 +142,7 @@ exports.delete = async (req, res) => {
   }
 };
 
-exports.generateSchedule = async (req, res) => {
-  const { teams, startDate, matchDurationMinutes, group, format } = req.body;
-  if (!teams || teams.length < 2) return res.status(400).json({ error: 'Cần ít nhất 2 đội' });
 
-  if (format === 'swiss') {
-    const players = await prisma.player.findMany({ where: { teamId: { not: null } } });
-    const teamMap = {};
-    for (const p of players) { if (!teamMap[p.teamId]) teamMap[p.teamId] = { name: p.teamId, pts: 0, wins: 0, losses: 0, scoreDiff: 0 }; }
-    const completed = await prisma.match.findMany({ where: { status: 'completed' } });
-    for (const m of completed) {
-      if (teamMap[m.team1Name]) {
-        if (m.winner === m.team1Name) { teamMap[m.team1Name].wins++; teamMap[m.team1Name].pts += 3; }
-        else if (m.winner === m.team2Name) { teamMap[m.team1Name].losses++; }
-        teamMap[m.team1Name].scoreDiff += (m.score1 || 0) - (m.score2 || 0);
-      }
-      if (teamMap[m.team2Name]) {
-        if (m.winner === m.team2Name) { teamMap[m.team2Name].wins++; teamMap[m.team2Name].pts += 3; }
-        else if (m.winner === m.team1Name) { teamMap[m.team2Name].losses++; }
-        teamMap[m.team2Name].scoreDiff += (m.score2 || 0) - (m.score1 || 0);
-      }
-    }
-    const sorted = Object.values(teamMap).sort((a, b) => b.pts - a.pts || b.wins - a.wins || b.scoreDiff - a.scoreDiff);
-    const played = new Set(completed.map(m => [m.team1Name, m.team2Name].sort().join('|||')));
-    const paired = new Set();
-    const pairs = [];
-    for (let i = 0; i < sorted.length; i++) {
-      if (paired.has(sorted[i].name)) continue;
-      paired.add(sorted[i].name);
-      for (let j = i + 1; j < sorted.length; j++) {
-        if (paired.has(sorted[j].name)) continue;
-        if (played.has([sorted[i].name, sorted[j].name].sort().join('|||'))) continue;
-        paired.add(sorted[j].name);
-        pairs.push([sorted[i].name, sorted[j].name]);
-        break;
-      }
-    }
-    if (pairs.length === 0) return res.status(400).json({ error: 'Không thể ghép cặp Swiss' });
-
-    const start = new Date(startDate || Date.now());
-    const dur = (matchDurationMinutes || 60) * 60000;
-    let t = start.getTime();
-    for (const [t1, t2] of pairs) {
-      await prisma.match.create({ data: { team1Name: t1, team2Name: t2, group: group || 'swiss', round: 'swiss', scheduledAt: new Date(t), status: 'pending' } });
-      t += dur;
-    }
-    const all = await prisma.match.findMany({ orderBy: { scheduledAt: 'asc' } });
-    logAction('schedule.swiss', pairs.length + ' matches').catch(err => log.error(err.message));
-    const io = getIO();
-    if (io) io.emit('matches:generated', { count: pairs.length, format: 'swiss' });
-    return res.status(201).json({ count: pairs.length, matches: all });
-  }
-
-  const matches = [];
-  const start = new Date(startDate || Date.now());
-  const durationMs = (matchDurationMinutes || 60) * 60 * 1000;
-  let currentTime = start.getTime();
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      matches.push({ team1Name: teams[i], team2Name: teams[j], group: group || null, round: 'group', scheduledAt: new Date(currentTime), status: 'pending' });
-      currentTime += durationMs;
-    }
-  }
-  for (const m of matches) { await prisma.match.create({ data: m }); }
-  logAction('schedule.generate', teams.length + ' teams').catch(err => log.error('Caught error', { error: err.message }));
-  const io = getIO();
-  if (io) io.emit('matches:generated', { count: teams.length });
-  const created = await prisma.match.findMany({ orderBy: { scheduledAt: 'asc' } });
-  res.status(201).json(created);
-};
 
 exports.getLeaderboard = async (req, res) => {
   const players = await prisma.player.findMany({

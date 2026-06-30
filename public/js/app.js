@@ -218,14 +218,17 @@
         }
         document.addEventListener('DOMContentLoaded', initGuideInteractions);
 
-        function showToast(msg, type='info') {
+        function showToast(msg, type='info', duration) {
+            if (duration === undefined) duration = 3000;
             const container = document.getElementById('toast-container');
             const el = document.createElement('div');
-            el.className = `p-3 rounded-xl border-l-4 ${type==='success'?'border-valCyan bg-valCard':'border-valRed bg-valCard'} shadow-2xl flex items-center gap-3 w-72 text-xs text-white translate-x-10 opacity-0 transition-all duration-300`;
-            el.innerHTML = `<i class="fa-solid ${type==='success'?'fa-check text-valCyan':'fa-exclamation-circle text-valRed'}"></i><span>${msg}</span>`;
+            const colors = { success: 'border-l-valCyan bg-valCard', error: 'border-l-valRed bg-valCard', warning: 'border-l-yellow-500 bg-valCard', info: 'border-l-blue-500 bg-valCard' };
+            const progressColors = { success: 'bg-valCyan', error: 'bg-valRed', warning: 'bg-yellow-500', info: 'bg-blue-500' };
+            const icons = { success: 'fa-check text-valCyan', error: 'fa-exclamation-circle text-valRed', warning: 'fa-triangle-exclamation text-yellow-400', info: 'fa-circle-info text-blue-400' };
+            el.className = 'relative overflow-hidden p-3 rounded-xl border-l-4 ' + (colors[type] || colors.info) + ' shadow-2xl flex items-center gap-3 w-72 text-xs text-white mb-2 toast-slide';
+            el.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.info) + '"></i><span class="flex-1">' + msg + '</span><div class="toast-progress ' + (progressColors[type] || 'bg-blue-500') + '" style="animation-duration:' + (duration/1000) + 's"></div>';
             container.appendChild(el);
-            setTimeout(() => el.classList.remove('translate-x-10', 'opacity-0'), 10);
-            setTimeout(() => { el.classList.add('opacity-0'); setTimeout(()=>el.remove(), 300); }, 3000);
+            setTimeout(() => el.remove(), duration);
         }
 
         // === Player Profile ===
@@ -243,6 +246,15 @@
 
         async function openProfile(discordId) {
             document.getElementById('profile-modal').classList.remove('hidden');
+            const modalContent = document.querySelector('#profile-modal > div');
+            if (modalContent) {
+                const radar = document.createElement('div');
+                radar.className = 'radar-scan';
+                radar.innerHTML = '<div></div>';
+                modalContent.style.position = 'relative';
+                modalContent.appendChild(radar);
+                setTimeout(() => radar.remove(), 600);
+            }
             document.getElementById('profile-name').textContent = 'Đang tải...';
             try {
                 const data = await api('/api/players/profile/' + discordId);
@@ -259,7 +271,13 @@
 
                 // Info
                 const teamName = data.team ? data.team.name : p.teamId || 'Tự do';
+                const ss = data.seasonStats || {};
                 document.getElementById('profile-info').innerHTML =
+                    '<div class="col-span-2 grid grid-cols-3 gap-2 mb-3">' +
+                    '<div class="bg-valBg/80 border border-gray-800 p-2 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block">Xếp hạng</span><span class="text-valCyan font-black text-base">#' + (ss.playerRank || '—') + '</span></div>' +
+                    '<div class="bg-valBg/80 border border-gray-800 p-2 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block">Mùa này</span><span class="text-white font-bold text-base">' + (ss.totalMatches || 0) + ' trận</span></div>' +
+                    '<div class="bg-valBg/80 border border-gray-800 p-2 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block">Win Rate</span><span class="text-emerald-400 font-black text-base">' + (p.wins + p.losses > 0 ? Math.round(p.wins / (p.wins + p.losses) * 100) : 0) + '%</span></div>' +
+                    '</div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Discord ID</span><span class="text-white font-bold">' + (p.discordId || '—') + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Rank</span><span class="text-white font-bold">' + (p.rank || '—') + '</span></div>' +
                     '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Peak Rank</span><span class="text-yellow-400 font-bold">' + (p.peakRank || p.rank || '—') + '</span></div>' +
@@ -272,47 +290,76 @@
 
                 // Charts
                 destroyProfileCharts();
-                const kdaCanvas = document.getElementById('kda-chart');
-                if (typeof Chart !== 'undefined' && kdaCanvas) {
-                    profileChartInstances.kda = new Chart(kdaCanvas, {
-                        type: 'bar', data: {
-                            labels: ['Kills', 'Deaths', 'Assists'],
-                            datasets: [{
-                                data: [data.kda.kills, data.kda.deaths, data.kda.assists],
-                                backgroundColor: ['#00f2fe', '#ff4655', '#eab308'],
-                                borderRadius: 4
-                            }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: '#9ca3af' } }, x: { ticks: { color: '#9ca3af' } } } }
-                    });
+                function showEmpty(container) {
+                    const cvs = container.querySelector('canvas');
+                    if (cvs) cvs.style.display = 'none';
+                    let e = container.querySelector('.chart-empty');
+                    if (!e) { e = document.createElement('p'); e.className = 'chart-empty text-gray-500 text-center py-4'; container.appendChild(e); }
+                    return e;
+                }
+                function hideEmpty(container) {
+                    const cvs = container.querySelector('canvas');
+                    if (cvs) cvs.style.display = '';
+                    const e = container.querySelector('.chart-empty');
+                    if (e) e.remove();
+                }
+                const kdaBox = document.querySelector('#kda-chart')?.parentElement;
+                if (typeof Chart !== 'undefined' && kdaBox) {
+                    const cvs = kdaBox.querySelector('canvas');
+                    if (data.kda.kills + data.kda.deaths + data.kda.assists === 0) {
+                        showEmpty(kdaBox).textContent = 'Chưa có dữ liệu';
+                    } else if (cvs) {
+                        hideEmpty(kdaBox);
+                        profileChartInstances.kda = new Chart(cvs, {
+                            type: 'bar', data: {
+                                labels: ['Kills', 'Deaths', 'Assists'],
+                                datasets: [{
+                                    data: [data.kda.kills, data.kda.deaths, data.kda.assists],
+                                    backgroundColor: ['#00f2fe', '#ff4655', '#eab308'],
+                                    borderRadius: 4
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: '#9ca3af' } }, x: { ticks: { color: '#9ca3af' } } } }
+                        });
+                    }
                 }
 
-                const wlCanvas = document.getElementById('wl-chart');
-                if (typeof Chart !== 'undefined' && wlCanvas) {
-                    profileChartInstances.wl = new Chart(wlCanvas, {
-                        type: 'doughnut', data: {
-                            labels: ['Thắng', 'Thua'],
-                            datasets: [{ data: [p.wins, p.losses], backgroundColor: ['#00f2fe', '#ff4655'], borderWidth: 0 }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 10 } } } } }
-                    });
+                const wlBox = document.querySelector('#wl-chart')?.parentElement;
+                if (typeof Chart !== 'undefined' && wlBox) {
+                    const cvs = wlBox.querySelector('canvas');
+                    if (p.wins + p.losses === 0) {
+                        showEmpty(wlBox).textContent = 'Chưa có trận';
+                    } else if (cvs) {
+                        hideEmpty(wlBox);
+                        profileChartInstances.wl = new Chart(cvs, {
+                            type: 'doughnut', data: {
+                                labels: ['Thắng', 'Thua'],
+                                datasets: [{ data: [p.wins, p.losses], backgroundColor: ['#00f2fe', '#ff4655'], borderWidth: 0 }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 10 } } } } }
+                        });
+                    }
                 }
 
-                const eloCanvas = document.getElementById('elo-chart');
-                if (typeof Chart !== 'undefined' && eloCanvas && data.eloHistory.length > 1) {
-                    profileChartInstances.elo = new Chart(eloCanvas, {
-                        type: 'line', data: {
-                            labels: data.eloHistory.map(e => new Date(e.createdAt).toLocaleDateString('vi-VN')),
-                            datasets: [{
-                                data: data.eloHistory.map(e => e.elo),
-                                borderColor: '#00f2fe', backgroundColor: 'rgba(0,242,254,0.1)',
-                                fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#00f2fe'
-                            }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: Math.min(...data.eloHistory.map(e=>e.elo)) - 50 || 0, ticks: { color: '#9ca3af' } }, x: { ticks: { color: '#9ca3af', maxTicksLimit: 8 } } } }
-                    });
-                } else if (eloCanvas) {
-                    eloCanvas.parentElement.innerHTML = '<p class="text-gray-500 text-center py-4">Chưa có dữ liệu Elo</p>';
+                const eloBox = document.querySelector('#elo-chart')?.parentElement;
+                if (typeof Chart !== 'undefined' && eloBox) {
+                    const cvs = eloBox.querySelector('canvas');
+                    if (data.eloHistory && data.eloHistory.length > 1 && cvs) {
+                        hideEmpty(eloBox);
+                        profileChartInstances.elo = new Chart(cvs, {
+                            type: 'line', data: {
+                                labels: data.eloHistory.map(e => new Date(e.createdAt).toLocaleDateString('vi-VN')),
+                                datasets: [{
+                                    data: data.eloHistory.map(e => e.elo),
+                                    borderColor: '#00f2fe', backgroundColor: 'rgba(0,242,254,0.1)',
+                                    fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#00f2fe'
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { y: { min: Math.min(...data.eloHistory.map(e=>e.elo)) - 50 || 0, ticks: { color: '#9ca3af' } }, x: { ticks: { color: '#9ca3af', maxTicksLimit: 8 } } } }
+                        });
+                    } else {
+                        showEmpty(eloBox).textContent = 'Chưa có dữ liệu Elo';
+                    }
                 }
 
                 // Match history
@@ -335,8 +382,11 @@
 
         // Bảo mật 2 lớp chống tuyển thủ tự động gọi Tab Admin từ URL hoặc console
         function switchTab(id) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(id).classList.remove('hidden');
+            document.querySelectorAll('.tab-content').forEach(el => { el.classList.remove('tab-fade-in'); el.classList.add('hidden'); });
+            const target = document.getElementById(id);
+            target.classList.remove('hidden');
+            void target.offsetWidth;
+            target.classList.add('tab-fade-in');
             
             document.querySelectorAll('.tab-btn').forEach(btn => { 
                 btn.classList.remove('bg-valRed', 'text-white', 'glow-red'); 
@@ -348,17 +398,32 @@
                 btn.classList.remove('text-gray-400'); 
                 btn.classList.add('bg-valRed', 'text-white', 'glow-red');
             }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         // Quản lý Đăng Nhập & Đăng Xuất Admin an toàn
-        function openAdminLoginModal() { 
+        function confirmAdminLogin() {
+            if (confirm('Bạn có chắc muốn mở Quyền Điều Hành?')) openAdminLoginModal();
+        }
+        function openAdminLoginModal() {
+            console.trace('openAdminLoginModal called');
             document.getElementById('admin-password-input').value = "";
             document.getElementById('admin-login-modal').classList.remove('hidden'); 
+            setTimeout(() => document.getElementById('admin-password-input')?.focus(), 100);
         }
         
         function closeAdminLoginModal() { 
             document.getElementById('admin-login-modal').classList.add('hidden'); 
         }
+        
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const p = document.getElementById('admin-password-input');
+                if (p && !document.getElementById('admin-login-modal').classList.contains('hidden') && document.activeElement === p) {
+                    checkAdminPassword();
+                }
+            }
+        });
         
         async function checkAdminPassword() {
             const pin = document.getElementById('admin-password-input').value;
@@ -373,7 +438,7 @@
                 renderAdmin();
                 showToast("Đăng nhập quyền Admin thành công!", "success");
             } catch(e) {
-                showToast("Sai mật khẩu! Gợi ý: mật khẩu admin được tạo bằng script create-admin.js (mặc định: evankk123)", "error");
+                showToast("Sai mật khẩu!", "error");
             }
         }
 
@@ -618,7 +683,7 @@
                 const state = (veto.maps && veto.maps[m]) || 'active';
                 let cls = 'map-card bg-valBg border rounded-xl overflow-hidden relative group ';
                 let overlay = '';
-                if (state === 'ban') { cls += 'map-banned'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-xmark text-4xl text-red-400 mb-1"></i><span class="text-[9px] bg-red-500/80 text-white px-2 py-0.5 rounded font-black">CẤM</span></div>'; }
+                if (state === 'ban') { cls += 'map-banned'; overlay = '<div class="banned-slash"><i class="fa-solid fa-xmark"></i></div><div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><span class="text-[9px] bg-red-500/80 text-white px-2 py-0.5 rounded font-black">CẤM</span></div>'; }
                 else if (state === 'pick1') { cls += 'map-picked-cyan'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-check text-4xl text-white mb-1"></i><span class="text-[9px] bg-blue-500/80 text-white px-2 py-0.5 rounded font-black">CHỌN V1</span></div>'; }
                 else if (state === 'pick2') { cls += 'map-picked-red'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-check text-4xl text-white mb-1"></i><span class="text-[9px] bg-red-500/80 text-white px-2 py-0.5 rounded font-black">CHỌN V2</span></div>'; }
                 else if (state === 'decider') { cls += 'map-decider'; overlay = '<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10"><i class="fa-solid fa-star text-4xl text-yellow-400 mb-1"></i><span class="text-[9px] bg-yellow-400/80 text-black px-2 py-0.5 rounded font-black">VÁN 3</span></div>'; }
@@ -669,7 +734,13 @@
         }
         function updateFormPoints() {
             const pts = rankPointsMap[document.getElementById('reg-rank').value] || 0;
-            document.getElementById('form-points-badge').innerText = pts + 'đ';
+            document.getElementById('form-points-badge').innerText = pts;
+            const bar = document.getElementById('energy-bar-fill');
+            if (bar) {
+                const pct = Math.min(100, (pts / 21) * 100);
+                bar.style.width = pct + '%';
+                bar.style.background = pct > 80 ? '#ff4655' : pct > 50 ? '#eab308' : '#22c55e';
+            }
         }
 
         function toggleTeamNameInput() {
@@ -878,6 +949,8 @@
         }
 
         function renderAdmin() {
+            const listContainer = document.getElementById('player-list-container');
+            if (!listContainer) return;
             const list = apiToken && apiPlayerCache.length > 0 ? apiPlayerCache : players;
             const search = (document.getElementById('admin-player-search')?.value || '').toLowerCase();
             const filtered = search ? list.filter(p => {
@@ -890,9 +963,13 @@
                 const discordId = (p.discordId || '').toLowerCase();
                 return name.includes(search) || riotId.includes(search) || rank.includes(search) || role.includes(search) || type.includes(search) || teamName.includes(search) || discordId.includes(search);
             }) : list;
-            document.getElementById('player-list-count').innerText = filtered.length;
-            document.getElementById('player-count-badge').innerText = list.length; if (document.getElementById('admin-player-count-badge')) document.getElementById('admin-player-count-badge').innerText = list.length;
-            const c = document.getElementById('player-list-container'); c.innerHTML='';
+            const plCount = document.getElementById('player-list-count');
+            if (plCount) plCount.innerText = filtered.length;
+            const plBadge = document.getElementById('player-count-badge');
+            if (plBadge) plBadge.innerText = list.length;
+            const adminPlBadge = document.getElementById('admin-player-count-badge');
+            if (adminPlBadge) adminPlBadge.innerText = list.length;
+            listContainer.innerHTML='';
             
             filtered.forEach((p, idx) => {
                 let drafted = team1.some(t=>t.id===p.id) || team2.some(t=>t.id===p.id);
@@ -1062,6 +1139,24 @@
             collapse.classList.toggle('hidden');
         }
 
+        let countdownTimer = null;
+        function updateAllCountdowns() {
+            if (countdownTimer) clearInterval(countdownTimer);
+            countdownTimer = setInterval(() => {
+                document.querySelectorAll('[id^="cd-"]').forEach(el => {
+                    const matchId = el.id.replace('cd-', '');
+                    const matchEl = el.closest('[data-scheduled]');
+                    if (!matchEl) { el.textContent = ''; return; }
+                    const t = new Date(matchEl.dataset.scheduled);
+                    const diff = t - Date.now();
+                    if (diff <= 0) { el.textContent = '🔴 Đang diễn ra'; return; }
+                    const h = Math.floor(diff / 3600000);
+                    const m = Math.floor((diff % 3600000) / 60000);
+                    const s = Math.floor((diff % 60000) / 1000);
+                    el.textContent = h > 0 ? h + 'g ' + m + 'p' : m + 'p ' + s + 's';
+                });
+            }, 1000);
+        }
         async function loadSchedule() {
             const container = document.getElementById('schedule-list');
             showLoading('Đang tải lịch đấu...');
@@ -1083,9 +1178,10 @@
                     html += '<h4 class="text-sm font-bold text-yellow-400 mb-3 uppercase"><i class="fa-solid fa-clock mr-1"></i>Sắp diễn ra</h4>';
                     pending.forEach(m => {
                         const time = m.scheduledAt ? new Date(m.scheduledAt).toLocaleString('vi-VN') : 'TBD';
+                        const countdownId = 'cd-' + m.id;
                         const timeId = 'time-panel-' + m.id;
                         const checkinId = 'checkin-panel-' + m.id;
-                        html += `<div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl">
+                        html += `<div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl" data-scheduled="${m.scheduledAt || ''}">
                             <div class="flex justify-between items-center">
                                 <div class="flex items-center gap-3">
                                     <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
@@ -1095,6 +1191,7 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-[10px] text-gray-400 font-mono">${time}</span>
+                                    <span id="${countdownId}" class="text-[10px] font-mono text-yellow-400/80 min-w-[60px] text-right"></span>
                                     <button onclick="document.getElementById('${checkinId}').classList.toggle('hidden')" class="text-[10px] text-valCyan border border-valCyan/30 px-2 py-1 rounded-lg hover:bg-valCyan/10 transition">
                                         <i class="fa-solid fa-check"></i> Check-in
                                     </button>
@@ -1154,6 +1251,7 @@
 
                 hideLoading();
                 container.innerHTML = html;
+                updateAllCountdowns();
             } catch(e) {
                 hideLoading();
                 container.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">Lỗi tải lịch đấu</div>';
@@ -1200,23 +1298,27 @@ async function generateSchedule() {
                 hideLoading();
                 const tbody = document.getElementById('leaderboard-body');
                 tbody.innerHTML = players.map(p =>
-                    `<tr class="border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50 transition" onclick="openProfile('${p.discordId}')" data-player-discord="${p.discordId}" data-player-name="${p.displayName}">
+                    `<tr class="${p.rank === 1 ? 'top1-border' : ''} border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50 transition" onclick="openProfile('${p.discordId}')" data-player-discord="${p.discordId}" data-player-name="${p.displayName}">
                         <td class="py-2.5 px-3 text-center font-bold ${p.rank <= 3 ? 'text-yellow-400 text-sm' : 'text-gray-400'}">${p.rank <= 3 ? ['🥇','🥈','🥉'][p.rank-1] : '#' + p.rank}</td>
                         <td class="py-2.5 px-3 font-bold text-valCyan hover:text-white transition flex items-center gap-2">
                             ${p.discordAvatar ? `<img src="https://cdn.discordapp.com/avatars/${p.discordId}/${p.discordAvatar}.png?size=24" class="w-5 h-5 rounded-full border border-gray-700 inline-block hover:ring-2 hover:ring-valCyan transition" onerror="this.style.display='none'">` : ''}
                             ${p.displayName}
                         </td>
                         <td class="py-2.5 px-3 text-center text-yellow-400 font-bold font-mono">${p.elo}</td>
-                        <td class="py-2.5 px-3 text-center text-gray-300">${p.rankName}</td>
+                        <td class="py-2.5 px-3 text-center text-gray-300 relative group cursor-help">
+                            ${p.rankName || '—'}
+                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-gray-900 text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none z-10 shadow-lg border border-gray-700">Elo: ${p.elo} | W/L: ${p.wins}/${p.losses}</span>
+                        </td>
                         <td class="py-2.5 px-3 text-center text-emerald-400 font-bold">${p.wins}</td>
                         <td class="py-2.5 px-3 text-center text-red-400">${p.losses}</td>
                         <td class="py-2.5 px-3 text-center text-yellow-400">${p.mvps}</td>
-                        <td class="py-2.5 px-3 text-center">${p.teamId ? `<span class="team-link text-[10px] text-valCyan cursor-pointer hover:text-white" onclick="event.stopPropagation();openTeamDetail('${p.teamId.replace(/'/g, "\\'")}')">${p.teamId}</span>` : '<span class="text-[10px] text-gray-600">-</span>'}</td>
+                        <td class="py-2.5 px-3 text-center">${p.teamId ? `<span class="team-link text-[10px] text-valCyan cursor-pointer hover:text-white" title="Click xem chi tiết đội" onclick="event.stopPropagation();openTeamDetail('${p.teamId.replace(/'/g, "\\'")}')">${p.teamId}</span>` : '<span class="text-[10px] text-gray-600">-</span>'}</td>
                     </tr>`
                 ).join('');
+                document.getElementById('leaderboard-updated').textContent = 'Cập nhật lúc ' + new Date().toLocaleTimeString('vi-VN');
             } catch(e) {
                 hideLoading();
-                document.getElementById('leaderboard-body').innerHTML = '<tr><td colspan="7" class="py-4 text-center text-gray-500">Chưa có dữ liệu</td></tr>';
+                document.getElementById('leaderboard-body').innerHTML = '<tr><td colspan="7" class="py-8 text-center text-gray-500"><i class="fa-solid fa-trophy text-2xl mb-2 block"></i>Chưa có dữ liệu</td></tr>';
             }
         }
 
@@ -1246,7 +1348,7 @@ async function generateSchedule() {
                     container.innerHTML += html;
                 }
                 if (Object.keys(standings).length === 0) {
-                    container.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">Chưa có kết quả trận đấu</div>';
+                    container.innerHTML = '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-clock-rotate-left text-2xl mb-2 block"></i>Chưa có kết quả trận đấu</div>';
                 }
             } catch(e) {
                 hideLoading();
@@ -1594,7 +1696,7 @@ async function generateSchedule() {
                 if (playerDetail && Array.isArray(playerDetail)) {
                     const upcoming = playerDetail.filter(m => m.status === 'pending');
                     if (upcoming.length === 0) {
-                        upcomingDiv.innerHTML = '<p class="text-center text-gray-500 text-sm py-4">Không có trận sắp tới</p>';
+                        upcomingDiv.innerHTML = '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-calendar-day text-2xl mb-2 block"></i>Không có trận sắp tới</div>';
                     } else {
                         upcomingDiv.innerHTML = upcoming.map(m => `
                             <div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl flex justify-between items-center">
@@ -1616,7 +1718,7 @@ async function generateSchedule() {
                 if (playerDetail && Array.isArray(playerDetail)) {
                     const history = playerDetail.filter(m => m.status === 'completed');
                     if (history.length === 0) {
-                        historyDiv.innerHTML = '<p class="text-center text-gray-500 text-sm py-4">Chưa có trận nào</p>';
+                        historyDiv.innerHTML = '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-clock-rotate-left text-2xl mb-2 block"></i>Chưa có trận nào</div>';
                     } else {
                         historyDiv.innerHTML = history.map(m => {
                             const rClass = m.result === 'win' ? 'text-emerald-400' : m.result === 'loss' ? 'text-red-400' : 'text-gray-400';
@@ -1664,7 +1766,7 @@ async function generateSchedule() {
                 const upcoming = matches.filter(m => m.status === 'pending');
                 upcomingDiv.innerHTML = upcoming.length > 0
                     ? upcoming.map(m => `<div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl flex justify-between"><span class="font-bold text-white text-sm">${m.team1Name} vs ${m.team2Name}</span><span class="text-[10px] text-gray-400">${m.scheduledAt ? new Date(m.scheduledAt).toLocaleString('vi-VN') : 'TBD'}</span></div>`).join('')
-                    : '<p class="text-center text-gray-500 text-sm py-4">Không có trận sắp tới</p>';
+                    : '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-calendar-day text-2xl mb-2 block"></i>Không có trận sắp tới</div>';
                 const historyDiv = document.getElementById('dashboard-history');
                 const history = matches.filter(m => m.status === 'completed');
                 historyDiv.innerHTML = history.length > 0
@@ -1672,7 +1774,7 @@ async function generateSchedule() {
                         const rClass = m.result === 'win' ? 'text-emerald-400' : 'text-red-400';
                         return `<div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl flex justify-between"><div class="flex items-center gap-2"><span class="font-bold text-white text-sm">${m.team1Name}</span><span class="font-black text-lg font-mono ${rClass}">${m.score1} - ${m.score2}</span><span class="font-bold text-white text-sm">${m.team2Name}</span><span class="text-[10px] ${rClass} font-bold uppercase">${m.result}</span></div><span class="text-[10px] text-gray-500">${m.map || ''}</span></div>`;
                     }).join('')
-                    : '<p class="text-center text-gray-500 text-sm py-4">Chưa có trận nào</p>';
+                    : '<div class="text-center text-gray-500 text-sm py-8"><i class="fa-solid fa-clock-rotate-left text-2xl mb-2 block"></i>Chưa có trận nào</div>';
                 resultDiv.classList.remove('hidden');
             } catch(e) {
                 hideLoading();
@@ -1842,7 +1944,7 @@ async function generateSchedule() {
                 const reports = await api('/api/matches/score-reports');
                 const container = document.getElementById('score-reports-list');
                 const pending = reports.filter(r => r.status === 'pending');
-                if (pending.length === 0) { container.innerHTML = '<p class="text-gray-500 text-center py-4">Không có báo cáo chờ duyệt</p>'; return; }
+                if (pending.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fa-solid fa-circle-check text-2xl mb-2 block"></i>Không có báo cáo chờ duyệt</div>'; return; }
                 container.innerHTML = pending.map(r => {
                     const m = r.match || {};
                     return `<div class="bg-valBg/60 border border-gray-800 p-3 rounded-xl">
@@ -2002,7 +2104,7 @@ async function generateSchedule() {
                 const list = await api('/api/disputes');
                 const pending = list.filter(d => d.status === 'open');
                 const container = document.getElementById('dispute-list');
-                if (pending.length === 0) { container.innerHTML = '<p class="text-gray-500 text-center py-2">Không có khiếu nại</p>'; return; }
+                if (pending.length === 0) { container.innerHTML = '<div class="text-center text-gray-500 py-6"><i class="fa-solid fa-scale-balanced text-xl mb-2 block"></i>Không có khiếu nại</div>'; return; }
                 container.innerHTML = pending.map(d => `<div class="bg-valBg/60 border border-orange-400/20 p-2.5 rounded-xl text-xs">
                     <div class="flex justify-between items-center">
                         <div><span class="text-white font-bold">${d.teamName}</span> <span class="text-gray-400">vs</span> <span class="text-orange-400">${d.reason}</span></div>
@@ -2805,11 +2907,14 @@ async function generateSchedule() {
             // socket connected
             socket.on('match:result', (data) => {
                 showToast('Kết quả: ' + (data.winner || 'Hòa') + ' (' + (data.score1 || 0) + '-' + (data.score2 || 0) + ')', 'success');
-                renderSchedule(); loadLeaderboard();
+                renderSchedule(); loadLeaderboard(); pulseTab('leaderboard-tab');
+                if (data.round === 'semifinal' || data.round === 'final') {
+                    if (!document.getElementById('bracket-tab')?.classList.contains('hidden')) loadBracket(); else pulseTab('bracket-tab');
+                }
             });
             socket.on('match:created', (data) => {
                 showToast('Trận mới: ' + data.team1Name + ' vs ' + data.team2Name, 'info');
-                renderSchedule();
+                renderSchedule(); pulseTab('schedule-tab');
             });
             socket.on('matches:generated', (data) => {
                 showToast('Đã tạo ' + data.count + ' trận!', 'success');
@@ -2817,15 +2922,15 @@ async function generateSchedule() {
             });
             socket.on('mvp:assigned', (data) => {
                 showToast('MVP: ' + (data.playerName || data.discordId), 'success');
-                loadLeaderboard();
+                loadLeaderboard(); pulseTab('leaderboard-tab');
             });
             socket.on('player:created', (data) => {
                 showToast('Đăng ký mới: ' + data.displayName, 'info');
-                loadLeaderboard(); loadAdminStats(); renderAdmin();
+                loadLeaderboard(); loadAdminStats(); renderAdmin(); pulseTab('leaderboard-tab');
             });
             socket.on('checkin:updated', (data) => {
                 showToast('Check-in: ' + data.count + ' người', 'info');
-                renderSchedule();
+                renderSchedule(); pulseTab('schedule-tab');
             });
             socket.on('bracket:generated', () => {
                 showToast('Đã tạo playoff!', 'success');
@@ -2854,16 +2959,45 @@ async function generateSchedule() {
                 }
             });
             socket.on('team:created', () => {
-                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser();
+                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser(); else pulseTab('teams-tab');
             });
             socket.on('team:approved', () => {
-                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser();
+                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser(); else pulseTab('teams-tab');
             });
             socket.on('joinRequest:created', () => {
-                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser();
+                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser(); else pulseTab('teams-tab');
             });
             socket.on('joinRequest:resolved', () => {
-                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser();
+                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser(); else pulseTab('teams-tab');
+            });
+            socket.on('dispute:created', () => {
+                showToast('Có khiếu nại mới!', 'warning');
+                if (apiToken) loadDisputes();
+            });
+            socket.on('dispute:updated', () => {
+                if (apiToken) loadDisputes();
+            });
+            socket.on('kda:updated', (data) => {
+                if (data.matchId && document.getElementById('match-detail-modal')?.classList.contains('hidden') === false) {
+                    openMatchDetail(data.matchId);
+                }
+            });
+            socket.on('score:report-resolved', (data) => {
+                showToast(data?.status === 'approved' ? 'Báo cáo đã duyệt' : 'Báo cáo đã từ chối', 'info');
+                renderSchedule(); loadLeaderboard(); pulseTab('leaderboard-tab');
+                if (apiToken) loadScoreReports();
+            });
+            socket.on('teams:reload', () => {
+                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser(); else pulseTab('teams-tab');
+                loadLeaderboard(); pulseTab('leaderboard-tab');
+            });
+            socket.on('team:deleted', () => {
+                showToast('Một đội đã bị xoá', 'warning');
+                if (!document.getElementById('teams-tab')?.classList.contains('hidden')) loadTeamsBrowser(); else pulseTab('teams-tab');
+                loadLeaderboard(); pulseTab('leaderboard-tab');
+            });
+            socket.on('stream:casters', () => {
+                if (!document.getElementById('stream-tab')?.classList.contains('hidden')) renderCasters();
             });
         }
 
@@ -2916,9 +3050,14 @@ async function generateSchedule() {
                 if (apiToken) {
                     document.getElementById('stream-admin-panel').classList.remove('hidden');
                     document.getElementById('stream-caster-admin').classList.remove('hidden');
+                    document.getElementById('obs-widget-card')?.classList.remove('hidden');
+                    document.getElementById('stream-embed-admin')?.classList.remove('hidden');
                     await loadStreamMatchSelect();
+                    updateObsWidgetUrl();
+                } else {
+                    document.getElementById('obs-widget-card')?.classList.add('hidden');
+                    document.getElementById('stream-embed-admin')?.classList.add('hidden');
                 }
-                updateObsWidgetUrl();
             } catch(e) {
                 hideLoading();
                 console.error('Stream load error:', e);
@@ -3155,9 +3294,21 @@ async function generateSchedule() {
             } catch(e) {}
         }
 
+        function pulseTab(tabId) {
+            const btn = document.getElementById('btn-' + tabId);
+            if (btn && !btn.querySelector('.tab-pulse-dot')) {
+                const dot = document.createElement('span');
+                dot.className = 'tab-pulse-dot';
+                btn.appendChild(dot);
+            }
+        }
+
         // Override switchTab to load data on tab switch
         const _baseSwitchTab = switchTab;
         switchTab = async function(id) {
+            // Remove pulse dot from the clicked tab
+            const btn = document.getElementById('btn-' + id);
+            if (btn) btn.querySelectorAll('.tab-pulse-dot').forEach(d => d.remove());
             _baseSwitchTab(id);
             if (id === 'register-tab') { autoFillRegisterForm(); }
             if (id === 'dashboard-tab') { loadPlayerProfile(); }
@@ -3267,6 +3418,21 @@ async function generateSchedule() {
                 }, 200);
             } catch(e) {}
         }
+        function playClickSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = ctx.createOscillator(); const g = ctx.createGain();
+                o.connect(g); g.connect(ctx.destination);
+                o.frequency.value = 660; o.type = 'sine';
+                g.gain.setValueAtTime(0.04, ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+                o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.08);
+            } catch(e) {}
+        }
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('button, .tab-btn, [onclick]');
+            if (btn && (btn.tagName === 'BUTTON' || btn.classList.contains('tab-btn'))) playClickSound();
+        });
         let logoClickCount = 0; let logoTimer = null;
         let rainbowInterval = null;
         function toggleRainbow(enable) {
@@ -3293,6 +3459,7 @@ async function generateSchedule() {
         // Key sequence "evan"
         let evanBuffer = [];
         document.addEventListener('keydown', function(e) {
+            if (!e || !e.key) return;
             konamiBuffer.push(e.key);
             if (konamiBuffer.length > KONAMI.length) konamiBuffer.shift();
             if (konamiBuffer.length === KONAMI.length && konamiBuffer.every((k,i) => k === KONAMI[i])) {
@@ -3301,6 +3468,7 @@ async function generateSchedule() {
                 playEasterEggSound();
                 konamiBuffer = [];
             }
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             evanBuffer.push(e.key.toLowerCase());
             if (evanBuffer.length > 4) evanBuffer.shift();
             if (evanBuffer.join('') === 'evan') {
@@ -3362,10 +3530,54 @@ async function generateSchedule() {
                 animParticle();
             });
         }
+        // Custom cursor
+        (function initCursor() {
+            const dot = document.createElement('div'); dot.className = 'cursor-dot';
+            const ring = document.createElement('div'); ring.className = 'cursor-ring';
+            document.body.appendChild(dot); document.body.appendChild(ring);
+            let mx = -100, my = -100, tickId = null;
+            function move() { dot.style.left = mx + 'px'; dot.style.top = my + 'px'; ring.style.left = (mx - 16) + 'px'; ring.style.top = (my - 16) + 'px'; tickId = null; }
+            document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; if (!tickId) tickId = requestAnimationFrame(move); });
+            document.addEventListener('mouseenter', () => { dot.style.opacity = '1'; ring.style.opacity = '1'; });
+            document.addEventListener('mouseleave', () => { dot.style.opacity = '0'; ring.style.opacity = '0'; });
+        })();
+
+        // Scroll effect — glassmorphism header
+        document.addEventListener('scroll', function() {
+            const h = document.querySelector('header');
+            if (!h) return;
+            if (window.scrollY > 40) h.classList.add('header-scroll');
+            else h.classList.remove('header-scroll');
+        });
+
+        // Input validation — Riot ID tick
+        document.addEventListener('input', function(e) {
+            const inp = e.target;
+            if (inp.id === 'riot-id' || inp.id === 'register-riot-id') {
+                const tick = inp.parentElement.querySelector('.input-tick');
+                const hasHash = inp.value.includes('#') && inp.value.split('#')[1]?.length > 0;
+                if (tick) { tick.classList.toggle('hidden', !hasHash); tick.classList.toggle('opacity-100', hasHash); }
+                inp.classList.toggle('input-valid', hasHash);
+            }
+        });
+
+        // Button loading state helper
+        function withLoading(btn, fn) {
+            return async function(...args) {
+                if (btn.disabled) return;
+                const orig = btn.innerHTML;
+                btn.disabled = true; btn.classList.add('btn-loading');
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i>Đang xử lý...';
+                try { await fn.apply(this, args); } catch(e) { showToast(e.message, 'error'); }
+                btn.disabled = false; btn.classList.remove('btn-loading');
+                btn.innerHTML = orig;
+            };
+        }
+
         function initEasterEggs() {
             const logoEl = document.getElementById('main-logo');
             if (logoEl) {
-                logo.addEventListener('dblclick', function(e) {
+                logoEl.addEventListener('dblclick', function(e) {
                     fireConfetti(80);
                     playEasterEggSound();
                     showToast('🎉 EVAN CUP!', 'success');
@@ -3439,6 +3651,42 @@ async function generateSchedule() {
                 .wiggle { animation: wiggle 0.6s ease-in-out; }
                 [data-interactive] { cursor: pointer; transition: all 0.2s; }
                 [data-interactive]:hover { filter: brightness(1.3); transform: scale(1.05); }
+                @keyframes skeleton { 0%,100%{opacity:.4} 50%{opacity:1} }
+                .skeleton { background: linear-gradient(90deg,#1f2937 25%,#374151 50%,#1f2937 75%); background-size:200% 100%; animation:skeleton 1.5s ease-in-out infinite; border-radius:8px; }
+                .toast-slide { animation: toastIn .3s ease-out, toastOut .3s ease-in 2.7s forwards; }
+                @keyframes toastIn { from { transform:translateX(100%); opacity:0 } to { transform:translateX(0); opacity:1 } }
+                @keyframes toastOut { from { opacity:1 } to { opacity:0; transform:translateX(50%) } }
+                .toast-progress { position:absolute; bottom:0; left:0; height:2px; border-radius:0 0 12px 12px; animation: toastProgress 3s linear forwards; }
+                @keyframes toastProgress { from { width:100% } to { width:0% } }
+                .cursor-dot { position:fixed; width:6px; height:6px; background:#00f2fe; border-radius:50%; pointer-events:none; z-index:99999; will-change:transform; }
+                .cursor-ring { position:fixed; width:32px; height:32px; border:1.5px solid rgba(0,242,254,0.4); border-radius:50%; pointer-events:none; z-index:99998; will-change:transform; transition:width .15s ease, height .15s ease, border-color .15s ease, background .15s ease; }
+                .cursor-ring.hovering { width:48px; height:48px; border-color:rgba(255,70,85,0.6); background:rgba(255,70,85,0.05); }
+                .tab-fade-in { animation: fadeInUp .3s ease-out forwards; }
+                @keyframes fadeInUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+                .input-glow:focus-within label { color:#00f2fe; text-shadow:0 0 8px rgba(0,242,254,0.3); }
+                .input-glow input:focus, .input-glow textarea:focus { border-color:#00f2fe; box-shadow:0 0 0 2px rgba(0,242,254,0.1), 0 0 20px rgba(0,242,254,0.05); }
+                .input-valid { border-color:#22c55e !important; box-shadow:0 0 0 2px rgba(34,197,94,0.1) !important; }
+                .header-scroll { backdrop-filter:blur(16px) saturate(180%) !important; background:rgba(11,14,20,0.85) !important; border-bottom-color:rgba(0,242,254,0.15) !important; }
+                .btn-loading { pointer-events:none; opacity:.7; position:relative; }
+                .glitch { animation: glitch .3s ease 2; }
+                @keyframes glitch { 0%{transform:translate(0)} 20%{transform:translate(-2px,1px)} 40%{transform:translate(2px,-1px)} 60%{transform:translate(-1px,-1px)} 80%{transform:translate(1px,2px)} 100%{transform:translate(0)} }
+                @keyframes logoGlitch { 0%{clip-path:inset(0 0 80% 0);transform:translate(-2px,2px)} 10%{clip-path:inset(20% 0 60% 0);transform:translate(2px,-2px)} 20%{clip-path:inset(40% 0 40% 0);transform:translate(-1px,1px)} 30%{clip-path:inset(60% 0 20% 0);transform:translate(1px,-1px)} 40%{clip-path:inset(80% 0 0 0);transform:translate(-2px,1px)} 50%{clip-path:inset(0 0 70% 0);transform:translate(2px,2px)} 60%{clip-path:inset(10% 0 50% 0);transform:translate(-1px,-1px)} 70%{clip-path:inset(30% 0 30% 0);transform:translate(1px,2px)} 80%{clip-path:inset(50% 0 10% 0);transform:translate(-2px,-1px)} 90%{clip-path:inset(70% 0 0 0);transform:translate(2px,1px)} 100%{clip-path:inset(0 0 80% 0);transform:translate(-1px,-2px)} }
+                #main-logo:hover { animation: logoGlitch .4s steps(1) 2; filter: hue-rotate(90deg) contrast(1.5); transition: filter .3s; }
+                .tab-pulse-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-left:4px; vertical-align:middle; animation: pulseDot 1.5s ease-in-out infinite; }
+                @keyframes pulseDot { 0%,100%{opacity:1;box-shadow:0 0 4px rgba(34,197,94,0.6)} 50%{opacity:.3;box-shadow:0 0 8px rgba(34,197,94,0.2)} }
+                .energy-bar { height:8px; border-radius:99px; background:#1f2937; overflow:hidden; transition:all .3s; }
+                .energy-bar-fill { height:100%; border-radius:99px; transition:width .4s ease, background .4s ease; }
+                .map-banned::after { content:''; position:absolute; inset:0; background:linear-gradient(to top right, transparent 40%, rgba(255,70,85,0.25) 48%, rgba(255,70,85,0.4) 50%, rgba(255,70,85,0.25) 52%, transparent 60%); pointer-events:none; z-index:5; }
+                .map-banned .banned-slash { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:6; pointer-events:none; }
+                .map-banned .banned-slash i { font-size:3rem; color:rgba(255,70,85,0.5); transform:rotate(0deg); }
+                .map-picked-cyan::before, .map-picked-red::before, .map-decider::before { content:''; position:absolute; inset:0; background:linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%); background-size:200% 100%; animation: shineSweep 1.5s ease-in-out infinite; pointer-events:none; z-index:5; }
+                @keyframes shineSweep { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+                .top1-border { position:relative; }
+                .top1-border::after { content:''; position:absolute; inset:-2px; border-radius:12px; background:linear-gradient(90deg, #ff4655, #00f2fe, #eab308, #ff4655); background-size:300% 100%; z-index:-1; animation: borderRotate 2s linear infinite; }
+                @keyframes borderRotate { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
+                @keyframes radarScan { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
+                .radar-scan { position:absolute; top:-50%; left:-50%; width:200%; height:200%; border-radius:50%; pointer-events:none; z-index:1; }
+                .radar-scan::before { content:''; display:block; width:100%; height:100%; border-radius:50%; background:conic-gradient(from 0deg, transparent 0deg, rgba(0,242,254,0.08) 10deg, transparent 20deg); animation:radarScan .6s linear 1; }
             `;
             document.head.appendChild(style);
             // Mark easter egg elements

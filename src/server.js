@@ -45,7 +45,7 @@ app.use(cors(corsOptions));
 
 app.use(cookieParser());
 
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 2000, message: { error: 'Too many requests, try again later' } });
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 2000, message: { error: 'Too many requests, try again later' }, skip: (req) => { try { const t = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null); if (t) { const d = require('jsonwebtoken').verify(t, process.env.JWT_SECRET); return !!d; } } catch(_){} return false; } });
 app.use('/api', apiLimiter);
 
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Too many login attempts, try again later' } });

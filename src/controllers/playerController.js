@@ -118,6 +118,11 @@ exports.getProfile = async (req, res, next) => {
 
     const team = player.teamId ? await prisma.team.findUnique({ where: { name: player.teamId } }) : null;
 
-    res.json({ player, team, matchHistory, eloHistory, kda: { kills: stats._sum.kills || 0, deaths: stats._sum.deaths || 0, assists: stats._sum.assists || 0 } });
+    const totalPlayers = await prisma.player.count();
+    const totalTeams = await prisma.team.count({ where: { status: 'approved' } });
+    const totalMatches = await prisma.match.count();
+    const playerRank = (await prisma.player.findMany({ orderBy: { elo: 'desc' }, select: { id: true } })).findIndex(p => p.id === player.id) + 1;
+
+    res.json({ player, team, matchHistory, eloHistory, kda: { kills: stats._sum.kills || 0, deaths: stats._sum.deaths || 0, assists: stats._sum.assists || 0 }, seasonStats: { totalPlayers, totalTeams, totalMatches, playerRank } });
   } catch (e) { next(e); }
 };

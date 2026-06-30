@@ -41,7 +41,7 @@ router.post('/create-from-registration', orAuth, async (req, res, next) => {
         name,
         captainDiscordId: discordId,
         rosterJson: JSON.stringify([discordId]),
-        status: 'recruiting',
+        status: 'approved',
         teamType: type || 'duo',
         color: type === 'trio' ? '#F97316' : '#EAB308',
         pts: teamPts
