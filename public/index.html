@@ -96,8 +96,8 @@
     <div id="toast-container" class="fixed top-5 right-5 z-[9999] space-y-3 pointer-events-none"></div>
 
     <!-- Floating help button -->
-    <button onclick="toggleHelpModal()" class="fixed bottom-5 right-5 z-[9998] w-10 h-10 rounded-full bg-valCard border border-gray-700 text-gray-400 hover:text-white hover:border-valCyan transition flex items-center justify-center shadow-xl" title="Hướng dẫn nhanh">
-        <i class="fa-solid fa-question text-sm"></i>
+    <button onclick="toggleHelpModal()" id="help-btn" class="fixed bottom-6 right-6 z-[9998] w-14 h-14 rounded-full bg-gradient-to-br from-valRed to-valDarkRed border-2 border-valRed/50 text-white hover:scale-110 hover:shadow-[0_0_25px_rgba(255,70,85,0.5)] transition-all duration-300 flex items-center justify-center shadow-2xl animate-bounce-subtle" title="Hướng dẫn nhanh (double-click để xem chi tiết)">
+        <i class="fa-solid fa-question text-lg"></i>
     </button>
 
     <!-- Help modal -->
@@ -109,13 +109,22 @@
                 <button onclick="toggleHelpModal()" class="ml-auto text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="p-4 space-y-3 text-xs text-gray-300">
-                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">📋 Cẩm Nang</span> — Thông tin giải thưởng, VETO map, cấu hình webhook</div>
-                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valRed font-bold">📝 Form Đăng Ký</span> — Đăng ký Solo/Duo/Trio, nhập thông tin Riot ID + Rank</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">📋 Cẩm Nang</span> — Thông tin giải thưởng, VETO map, cấu hình webhook, lịch trình</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valRed font-bold">📝 Đăng Ký</span> — Điền thông tin, nhập Riot ID (tự động tra rank), chọn đội hoặc tạo đội mới</div>
                 <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-yellow-400 font-bold">⚖️ Cân Bằng & Draft</span> — Admin: quản lý VĐV, auto-draft đội, duyệt team, penalty, audit log</div>
-                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">📅 Lịch Đấu</span> — Xem trận sắp/đã đấu, check-in, nhập kết quả, VETO. Nhấn <i class="fa-solid fa-expand text-gray-400"></i> để phóng to</div>
-                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-yellow-400 font-bold">🏆 Bảng XH</span> — Xếp hạng Elo, click tên để xem profile + KDA + biểu đồ + đối đầu</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">📅 Lịch Đấu</span> — Xem trận sắp/đã đấu, check-in, nhập kết quả, VETO. Nhấn <i class="fa-solid fa-expand"></i> phóng to</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-yellow-400 font-bold">🏆 Bảng XH</span> — Xếp hạng Elo, click tên xem profile + KDA + biểu đồ + đối đầu</div>
                 <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-valCyan font-bold">👤 Dashboard</span> — Tra cứu lịch sử VĐV hoặc đội</div>
                 <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><span class="text-emerald-400 font-bold">🔀 Playoff</span> — Vòng loại trực tiếp, tạo + cập nhật bracket</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800 text-gray-500 italic" id="help-easteregg-hint">💡 <span class="text-gray-600">Double-click vào nút <strong class="text-valRed">?</strong> để mở hướng dẫn chi tiết</span></div>
+            </div>
+            <div id="help-detailed" class="p-4 pt-0 space-y-3 text-xs text-gray-300 hidden border-t border-gray-800 mt-2">
+                <h4 class="font-bold text-white uppercase text-sm mt-3">🔥 Hướng Dẫn Chi Tiết</h4>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><strong class="text-valCyan">Đăng Ký:</strong> Login Discord → tab Đăng Ký → nhập Riot ID (tự tra rank) → chọn vai trò → submit. Có thể tạo đội mới hoặc join đội có sẵn.</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><strong class="text-valCyan">Đội:</strong> Tab Đội → tạo đội (nhập tên) hoặc gửi đơn join đội. Captain có thể duyệt/thành viên, giải tán đội.</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><strong class="text-valCyan">Lịch Đấu:</strong> Xem trận sắp tới, check-in trước 15ph, nhập kết quả sau trận. Bấm VETO để cấm/chọn map.</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><strong class="text-valCyan">Admin:</strong> Bấm "Kích Hoạt Quyền Admin" dưới footer → nhập PIN. Quản lý đội, duyệt đơn, chỉnh sửa lịch, xem audit log.</div>
+                <div class="bg-valBg/50 p-3 rounded-xl border border-gray-800"><strong class="text-valCyan">Mẹo:</strong> Click chuột phải vào tên người chơi → Copy ID / Xem profile. Double-click logo → confetti 🎉</div>
             </div>
         </div>
     </div>
@@ -233,6 +242,7 @@
                         <i class="fa-solid fa-trophy mr-1.5 text-yellow-400 animate-bounce"></i> CƠ CẤU GIẢI THƯỞNG EVAN CUP
                     </span>
                     <h2 class="font-display text-lg sm:text-xl font-black text-white uppercase mt-3 tracking-wider">Hào Khí Tranh Tài - Săn Ngay Quà Khủng</h2>
+                    <p class="text-xs text-gray-500 mt-2"><i class="fa-solid fa-shield-halved text-valCyan mr-1"></i>Tất cả người chơi tham gia đều nhận <strong class="text-yellow-400">Role Thi Đấu Độc Quyền</strong> trên Discord</p>
                     <button onclick="document.getElementById('guide-popup-prize').classList.remove('hidden')" class="mt-2 text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-500/30 transition"><i class="fa-solid fa-expand mr-1"></i>Xem chi tiết giải thưởng</button>
                 </div>
 
@@ -297,7 +307,7 @@
                                 <div class="w-14 h-14 rounded-xl bg-valRed/20 flex items-center justify-center shrink-0 text-2xl text-valRed"><i class="fa-solid fa-pen-to-square"></i></div>
                                 <div>
                                     <h4 class="text-white font-bold text-base uppercase">Mở Đăng Ký Giải</h4>
-                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>01/07 - 05/07</span>
+                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>Đến 23:59 ngày <strong class="text-white">07/07</strong></span>
                                     <p class="text-sm text-gray-400 leading-relaxed">Tuyển thủ điền thông tin tại tab <strong class="text-valRed">Đơn Đăng Ký</strong>. Thông tin sẽ được tự động lưu và Admin sẽ kiểm duyệt.</p>
                                     <button onclick="switchTab('register-tab')" class="mt-3 text-[11px] bg-valRed/20 text-valRed border border-valRed/30 px-3 py-1.5 rounded-lg font-bold hover:bg-valRed/30 transition">Đăng Ký Ngay</button>
                                 </div>
@@ -310,9 +320,9 @@
                             <div class="flex items-start gap-4 mt-2">
                                 <div class="w-14 h-14 rounded-xl bg-valCyan/20 flex items-center justify-center shrink-0 text-2xl text-valCyan"><i class="fa-solid fa-shuffle"></i></div>
                                 <div>
-                                    <h4 class="text-white font-bold text-base uppercase">Draft Quân & Chia Đội</h4>
-                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>06/07</span>
-                                    <p class="text-sm text-gray-400 leading-relaxed">Ban tổ chức chốt danh sách 30 người chơi. Livestream kích hoạt bộ chia đội tự động cân bằng rank và tiến hành bốc thăm chia 2 bảng đấu (A & B).</p>
+                                    <h4 class="text-white font-bold text-base uppercase">Chốt Danh Sách Đội</h4>
+                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>Ngày <strong class="text-white">08/07</strong></span>
+                                    <p class="text-sm text-gray-400 leading-relaxed">Ban tổ chức chốt danh sách đội, tiến hành bốc thăm chia bảng đấu. Livestream chia đội tự động cân bằng rank.</p>
                                 </div>
                             </div>
                         </div>
@@ -324,8 +334,8 @@
                                 <div class="w-14 h-14 rounded-xl bg-gray-700/30 flex items-center justify-center shrink-0 text-2xl text-gray-400"><i class="fa-solid fa-gamepad"></i></div>
                                 <div>
                                     <h4 class="text-white font-bold text-base uppercase">Khởi Tranh Vòng Bảng</h4>
-                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>08/07 - 10/07</span>
-                                    <p class="text-sm text-gray-400 leading-relaxed">Các đội trong bảng thi đấu vòng tròn 1 lượt (BO1). 2 đội có điểm số cao nhất mỗi bảng sẽ giành vé vàng bước tiếp vào vòng Bán Kết kịch tính.</p>
+                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>Ngày <strong class="text-white">11-12/07</strong> · <strong class="text-valRed">14:00</strong></span>
+                                    <p class="text-sm text-gray-400 leading-relaxed">Các đội thi đấu vòng tròn (BO1). 2 đội có điểm số cao nhất mỗi bảng giành vé vào Bán Kết.</p>
                                 </div>
                             </div>
                         </div>
@@ -337,8 +347,8 @@
                                 <div class="w-14 h-14 rounded-xl bg-yellow-500/20 flex items-center justify-center shrink-0 text-2xl text-yellow-400"><i class="fa-solid fa-trophy"></i></div>
                                 <div>
                                     <h4 class="text-yellow-400 font-bold text-base uppercase">Bán Kết & Chung Kết</h4>
-                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>12/07</span>
-                                    <p class="text-sm text-gray-400 leading-relaxed">Vòng loại trực tiếp diễn ra trực tuyến. Trận chung kết (BO3) sẽ được phát sóng trực tiếp kèm bình luận viên tại phòng máy chiếu của server.</p>
+                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-solid fa-clock text-yellow-400 animate-pulse mr-1"></i><span id="schedule-finals-time" class="font-bold text-white">Đang cập nhật</span> <span id="schedule-finals-admin" class="hidden text-[10px]"><button onclick="editFinalsTime()" class="text-valCyan hover:text-white ml-1 underline">[Sửa]</button></span></span>
+                                    <p class="text-sm text-gray-400 leading-relaxed">Vòng loại trực tiếp. Trận chung kết (BO3) phát sóng trực tiếp kèm BLV.</p>
                                 </div>
                             </div>
                         </div>

@@ -30,6 +30,7 @@
 
         function requireAdminAuth() {
           if (apiToken) return true;
+          _adminModalAllowed = true;
           openAdminLoginModal();
           showToast('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại!', 'error');
           return false;
@@ -163,7 +164,29 @@
 
         // === Guide interactive functions ===
         function toggleHelpModal() {
-            document.getElementById('help-modal').classList.toggle('hidden');
+            const modal = document.getElementById('help-modal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('help-detailed')?.classList.add('hidden');
+                document.getElementById('help-easteregg-hint')?.classList.remove('hidden');
+            }
+        }
+        function toggleHelpDetailed() {
+            const d = document.getElementById('help-detailed');
+            const h = document.getElementById('help-easteregg-hint');
+            if (d) { d.classList.toggle('hidden'); }
+            if (h) { h.classList.add('hidden'); }
+            fireConfetti(30);
+            playEasterEggSound();
+        }
+        function editFinalsTime() {
+            const current = localStorage.getItem('evan_finals_time') || '';
+            const t = prompt('Nhập thời gian Bán Kết & Chung Kết (vd: 13/07 · 14:00):', current);
+            if (t !== null) {
+                localStorage.setItem('evan_finals_time', t);
+                document.getElementById('schedule-finals-time').textContent = t || 'Đang cập nhật';
+                showToast('Đã cập nhật thời gian!', 'success');
+            }
         }
         let _guideInit = false;
         function initGuideInteractions() {
@@ -215,6 +238,20 @@
                     if (e.target === p) p.classList.add('hidden');
                 });
             });
+            // Double-click help button → detailed guide
+            const helpBtn = document.getElementById('help-btn');
+            if (helpBtn) {
+                helpBtn.addEventListener('dblclick', function(e) {
+                    e.preventDefault();
+                    toggleHelpModal();
+                    setTimeout(toggleHelpDetailed, 300);
+                });
+            }
+            // Load finals time from localStorage
+            const savedFinals = localStorage.getItem('evan_finals_time');
+            if (savedFinals) document.getElementById('schedule-finals-time').textContent = savedFinals;
+            // Show admin edit button if admin
+            if (apiToken) document.getElementById('schedule-finals-admin')?.classList.remove('hidden');
         }
         document.addEventListener('DOMContentLoaded', initGuideInteractions);
 
@@ -402,10 +439,14 @@
         }
 
         // Quản lý Đăng Nhập & Đăng Xuất Admin an toàn
+        let _adminModalAllowed = false;
         function confirmAdminLogin() {
+            _adminModalAllowed = true;
             if (confirm('Bạn có chắc muốn mở Quyền Điều Hành?')) openAdminLoginModal();
         }
         function openAdminLoginModal() {
+            if (!_adminModalAllowed) { console.warn('Admin modal blocked (not user-initiated)'); return; }
+            _adminModalAllowed = false;
             console.trace('openAdminLoginModal called');
             document.getElementById('admin-password-input').value = "";
             document.getElementById('admin-login-modal').classList.remove('hidden'); 
@@ -430,6 +471,7 @@
             try {
                 await apiLogin('evan', pin);
                 document.getElementById('btn-admin-tab').classList.remove('hidden');
+                document.getElementById('schedule-finals-admin')?.classList.remove('hidden');
                 document.getElementById('admin-trigger-btn').innerHTML = `<i class="fa-solid fa-user-shield text-valCyan"></i> Admin Đã Đăng Nhập`;
                 closeAdminLoginModal();
                 switchTab('admin-tab');
@@ -2760,7 +2802,7 @@ async function generateSchedule() {
             try {
                 const team = allTeams.find(t => t.name === currentPlayerTeam);
                 if (!team) return showToast('Không tìm thấy đội!', 'error');
-                await api('/api/teams/' + team.id + '/disband', { method: 'POST' });
+                await api('/api/teams/' + encodeURIComponent(team.name) + '/disband', { method: 'DELETE' });
                 showToast('Đã giải tán đội!', 'success');
                 currentPlayerTeam = null;
                 loadTeamsBrowser();
@@ -3326,7 +3368,7 @@ async function generateSchedule() {
                 }
             }
             if (id === 'admin-tab') {
-                if (!apiToken) { openAdminLoginModal(); return; }
+                if (!apiToken) { _adminModalAllowed = true; openAdminLoginModal(); return; }
                 loadPendingTeams(); renderAdmin();
                 loadScoreReports();
                 switchAdminSubTab(currentAdminSubTab);
@@ -3531,16 +3573,7 @@ async function generateSchedule() {
             });
         }
         // Custom cursor
-        (function initCursor() {
-            const dot = document.createElement('div'); dot.className = 'cursor-dot';
-            const ring = document.createElement('div'); ring.className = 'cursor-ring';
-            document.body.appendChild(dot); document.body.appendChild(ring);
-            let mx = -100, my = -100, tickId = null;
-            function move() { dot.style.left = mx + 'px'; dot.style.top = my + 'px'; ring.style.left = (mx - 16) + 'px'; ring.style.top = (my - 16) + 'px'; tickId = null; }
-            document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; if (!tickId) tickId = requestAnimationFrame(move); });
-            document.addEventListener('mouseenter', () => { dot.style.opacity = '1'; ring.style.opacity = '1'; });
-            document.addEventListener('mouseleave', () => { dot.style.opacity = '0'; ring.style.opacity = '0'; });
-        })();
+        // Custom cursor removed per user request
 
         // Scroll effect — glassmorphism header
         document.addEventListener('scroll', function() {
@@ -3658,9 +3691,8 @@ async function generateSchedule() {
                 @keyframes toastOut { from { opacity:1 } to { opacity:0; transform:translateX(50%) } }
                 .toast-progress { position:absolute; bottom:0; left:0; height:2px; border-radius:0 0 12px 12px; animation: toastProgress 3s linear forwards; }
                 @keyframes toastProgress { from { width:100% } to { width:0% } }
-                .cursor-dot { position:fixed; width:6px; height:6px; background:#00f2fe; border-radius:50%; pointer-events:none; z-index:99999; will-change:transform; }
-                .cursor-ring { position:fixed; width:32px; height:32px; border:1.5px solid rgba(0,242,254,0.4); border-radius:50%; pointer-events:none; z-index:99998; will-change:transform; transition:width .15s ease, height .15s ease, border-color .15s ease, background .15s ease; }
-                .cursor-ring.hovering { width:48px; height:48px; border-color:rgba(255,70,85,0.6); background:rgba(255,70,85,0.05); }
+                .animate-bounce-subtle { animation: bounce-subtle 2s ease-in-out infinite; }
+                @keyframes bounce-subtle { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
                 .tab-fade-in { animation: fadeInUp .3s ease-out forwards; }
                 @keyframes fadeInUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
                 .input-glow:focus-within label { color:#00f2fe; text-shadow:0 0 8px rgba(0,242,254,0.3); }
