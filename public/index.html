@@ -143,13 +143,15 @@
                     </div>
                 </div>
                 <div>
-                    <h1 class="font-display font-black text-2xl tracking-wider text-white uppercase flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                        <span>EVAN</span>
-                        <span class="text-valRed font-extrabold text-lg sm:text-xl normal-case italic font-sans">make u feel better</span>
-                    </h1>
-                    <p class="text-[11px] text-valCyan font-mono uppercase tracking-widest font-black flex items-center gap-1.5 mt-0.5">
-                        <i class="fa-solid fa-crosshairs text-valRed animate-ping"></i> GIẢI ĐẤU EVAN CUP • TRẦN ĐIỂM: 21
-                    </p>
+                    <div class="flex items-center gap-2">
+                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-valRed to-pink-600 flex items-center justify-center shadow-lg shadow-valRed/30">
+                            <i class="fa-solid fa-trophy text-white text-sm drop-shadow"></i>
+                        </div>
+                        <h1 class="font-display font-black text-xl tracking-tight text-white flex items-baseline gap-1.5">
+                            <span class="bg-gradient-to-r from-valRed to-pink-400 bg-clip-text text-transparent">EVAN</span>
+                            <span class="text-xs font-mono font-bold text-gray-400 tracking-widest">CUP</span>
+                        </h1>
+                    </div>
                 </div>
             </div>
             
@@ -163,6 +165,9 @@
                 </button>
                 <button onclick="switchTab('teams-tab')" id="btn-teams-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Danh sách đội — gửi đơn xin vào đội">
                     <i class="fa-solid fa-people-group mr-2"></i>Đội
+                </button>
+                <button onclick="switchTab('freeagents-tab')" id="btn-freeagents-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale" title="Tuyển thủ tự do chưa có đội">
+                    <i class="fa-solid fa-user-plus mr-2"></i>Tuyển Thủ Tự Do
                 </button>
                 <button onclick="switchTab('admin-tab')" id="btn-admin-tab" class="tab-btn px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 text-gray-400 hover:text-white hover-scale relative hidden" title="Cân bằng đội, duyệt team, penalty, audit log">
                     <i class="fa-solid fa-crown mr-2"></i>Cân Bằng &amp; Draft
@@ -247,44 +252,55 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch relative">
-                    <!-- Giải MVP -->
-                    <div class="order-2 md:order-1 bg-valBg/80 border border-gray-800 p-5 rounded-xl text-center hover-scale flex flex-col justify-center shadow-lg guide-popup-trigger" onclick="document.getElementById('guide-popup-prize').classList.remove('hidden')">
+                    <!-- Giải Nhì -->
+                    <div class="order-2 md:order-1 bg-valBg/80 border border-gray-800 p-5 rounded-xl text-center hover-scale flex flex-col justify-center shadow-lg" onclick="document.getElementById('guide-popup-prize').classList.remove('hidden')">
                         <div class="mb-2">
                             <div class="text-3xl text-gray-300 mb-2 drop-shadow-md"><i class="fa-solid fa-medal"></i></div>
-                            <h4 class="text-xs text-gray-300 font-bold uppercase tracking-wider">Cá Nhân Xuất Sắc (MVP)</h4>
+                            <h4 class="text-xs text-gray-300 font-bold uppercase tracking-wider">Giải Nhì (×2)</h4>
                         </div>
-                        <div class="my-2">
-                            <p class="text-2xl font-black text-white font-mono tracking-wide">610 VP</p>
-                            <p class="text-[11px] text-gray-400 font-semibold mt-1">Quy đổi: <span class="text-gray-300 font-mono font-bold">100.000 VNĐ</span></p>
+                        <div class="my-2 space-y-2">
+                            <div class="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg p-2">
+                                <p class="text-2xl font-black text-green-400 font-mono tracking-wide drop-shadow">100.000₫</p>
+                                <p class="text-[10px] text-gray-500">Tiền mặt</p>
+                            </div>
+                            <p class="text-xs text-gray-500">Hoặc <span class="text-gray-300 font-mono font-bold">610 VP</span> (Valorant Points)</p>
                         </div>
+                        <div class="mt-2 text-[10px] text-gray-500">Role Độc Quyền cho tất cả người chơi</div>
                     </div>
 
-                    <!-- Giải Vô Địch (Được phóng to và đặt ở trung tâm làm điểm nhấn) -->
-                    <div class="order-1 md:order-2 bg-gradient-to-b from-yellow-500/20 via-valBg to-yellow-950/30 border-2 border-yellow-400 p-6 md:scale-110 z-10 rounded-2xl text-center hover-scale flex flex-col justify-center relative shadow-[0_0_35px_rgba(250,204,21,0.25)] guide-popup-trigger" onclick="document.getElementById('guide-popup-prize').classList.remove('hidden')">
+                    <!-- Giải Vô Địch -->
+                    <div class="order-1 md:order-2 bg-gradient-to-b from-yellow-500/20 via-valBg to-yellow-950/30 border-2 border-yellow-400 p-6 md:scale-110 z-10 rounded-2xl text-center hover-scale flex flex-col justify-center relative shadow-[0_0_35px_rgba(250,204,21,0.25)]" onclick="document.getElementById('guide-popup-prize').classList.remove('hidden')">
                         <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-amber-400 text-black px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-yellow-200 shadow-lg whitespace-nowrap">
-                            <i class="fa-solid fa-star mr-1"></i> CAO QUÝ NHẤT <i class="fa-solid fa-star ml-1"></i>
+                            <i class="fa-solid fa-star mr-1"></i> GIẢI NHẤT <i class="fa-solid fa-star ml-1"></i>
                         </div>
                         <div class="mb-3 mt-2">
                             <div class="text-5xl text-yellow-400 mb-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]"><i class="fa-solid fa-crown"></i></div>
                             <h4 class="text-sm text-yellow-400 font-black uppercase tracking-widest font-display">Đội Vô Địch (Champion)</h4>
                         </div>
-                        <div class="my-2">
-                            <p class="text-4xl font-black text-white font-mono tracking-wide drop-shadow-lg">3,040 VP</p>
-                            <p class="text-xs text-yellow-500/80 font-bold mt-1">Hoặc quy đổi: <span class="text-yellow-400 font-mono text-sm">500.000 VNĐ</span></p>
+                        <div class="my-2 space-y-2">
+                            <div class="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-2 border-yellow-400 rounded-xl p-3 animate-pulse-gold">
+                                <p class="text-3xl font-black text-yellow-300 font-mono tracking-wide drop-shadow-lg">500.000₫</p>
+                                <p class="text-[11px] text-yellow-500 font-bold">Tiền mặt</p>
+                            </div>
+                            <p class="text-xs text-yellow-500/80">Hoặc <span class="text-yellow-300 font-mono font-bold">3,040 VP</span> (Valorant Points)</p>
                         </div>
-                        <div class="mt-3 text-[11px] text-yellow-400 font-bold bg-yellow-500/10 py-2 rounded-lg border border-yellow-500/30">Cấp màu Role Vô Địch Độc Quyền</div>
+                        <div class="mt-3 text-[11px] text-yellow-400 font-bold bg-yellow-500/10 py-2 rounded-lg border border-yellow-500/30">Role Vô Địch Độc Quyền</div>
                     </div>
 
-                    <!-- Giải Highlight -->
-                    <div class="order-3 md:order-3 bg-valBg/80 border border-gray-800 p-5 rounded-xl text-center hover-scale flex flex-col justify-center shadow-lg guide-popup-trigger" onclick="document.getElementById('guide-popup-prize').classList.remove('hidden')">
+                    <!-- Highlight -->
+                    <div class="order-3 md:order-3 bg-valBg/80 border border-gray-800 p-5 rounded-xl text-center hover-scale flex flex-col justify-center shadow-lg" onclick="document.getElementById('guide-popup-prize').classList.remove('hidden')">
                         <div class="mb-2">
                             <div class="text-3xl text-amber-600 mb-2 drop-shadow-md"><i class="fa-solid fa-fire-flame-curved"></i></div>
                             <h4 class="text-xs text-amber-500 font-bold uppercase tracking-wider">Best Highlight Toàn Giải</h4>
                         </div>
-                        <div class="my-2">
-                            <p class="text-2xl font-black text-white font-mono tracking-wide">610 VP</p>
-                            <p class="text-[11px] text-gray-400 font-semibold mt-1">Quy đổi: <span class="text-amber-500 font-mono font-bold">100.000 VNĐ</span></p>
+                        <div class="my-2 space-y-2">
+                            <div class="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-lg p-2">
+                                <p class="text-2xl font-black text-amber-400 font-mono tracking-wide drop-shadow">100.000₫</p>
+                                <p class="text-[10px] text-gray-500">Tiền mặt</p>
+                            </div>
+                            <p class="text-xs text-gray-500">Hoặc <span class="text-amber-300 font-mono font-bold">610 VP</span> (Valorant Points)</p>
                         </div>
+                        <div class="mt-2 text-[10px] text-gray-500">Role Độc Quyền cho tất cả người chơi</div>
                     </div>
                 </div>
             </div>
@@ -300,7 +316,7 @@
                     <span class="text-[10px] text-gray-500 guide-carousel-counter"><span class="text-white font-bold">1</span>/4</span>
                 </div>
                 <div class="guide-carousel">
-                    <div class="guide-slide active">
+                    <div class="guide-slide active cursor-pointer" onclick="openGuidePopup(1)">
                         <div class="bg-valBg/60 p-6 rounded-xl border border-valRed/30 relative">
                             <div class="absolute -top-3 -left-1 bg-valRed text-white font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 1</div>
                             <div class="flex items-start gap-4 mt-2">
@@ -309,25 +325,25 @@
                                     <h4 class="text-white font-bold text-base uppercase">Mở Đăng Ký Giải</h4>
                                     <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>Đến 23:59 ngày <strong class="text-white">07/07</strong></span>
                                     <p class="text-sm text-gray-400 leading-relaxed">Tuyển thủ điền thông tin tại tab <strong class="text-valRed">Đơn Đăng Ký</strong>. Thông tin sẽ được tự động lưu và Admin sẽ kiểm duyệt.</p>
-                                    <button onclick="switchTab('register-tab')" class="mt-3 text-[11px] bg-valRed/20 text-valRed border border-valRed/30 px-3 py-1.5 rounded-lg font-bold hover:bg-valRed/30 transition">Đăng Ký Ngay</button>
+                                    <button onclick="event.stopPropagation();switchTab('register-tab')" class="mt-3 text-[11px] bg-valRed/20 text-valRed border border-valRed/30 px-3 py-1.5 rounded-lg font-bold hover:bg-valRed/30 transition">Đăng Ký Ngay</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="guide-slide">
+                    <div class="guide-slide cursor-pointer" onclick="openGuidePopup(2)">
                         <div class="bg-valBg/60 p-6 rounded-xl border border-valCyan/30 relative">
                             <div class="absolute -top-3 -left-1 bg-valCyan text-valBg font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 2</div>
                             <div class="flex items-start gap-4 mt-2">
                                 <div class="w-14 h-14 rounded-xl bg-valCyan/20 flex items-center justify-center shrink-0 text-2xl text-valCyan"><i class="fa-solid fa-shuffle"></i></div>
                                 <div>
                                     <h4 class="text-white font-bold text-base uppercase">Chốt Danh Sách Đội</h4>
-                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i>Ngày <strong class="text-white">08/07</strong></span>
+                                    <span class="text-[11px] text-valCyan font-mono block mb-2"><i class="fa-regular fa-clock mr-1"></i><strong class="text-white">20h</strong> ngày <strong class="text-white">08/07</strong></span>
                                     <p class="text-sm text-gray-400 leading-relaxed">Ban tổ chức chốt danh sách đội, tiến hành bốc thăm chia bảng đấu. Livestream chia đội tự động cân bằng rank.</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="guide-slide">
+                    <div class="guide-slide cursor-pointer" onclick="openGuidePopup(3)">
                         <div class="bg-valBg/60 p-6 rounded-xl border border-gray-700 relative">
                             <div class="absolute -top-3 -left-1 bg-gray-700 text-gray-300 font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 3</div>
                             <div class="flex items-start gap-4 mt-2">
@@ -340,7 +356,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="guide-slide">
+                    <div class="guide-slide cursor-pointer" onclick="openGuidePopup(4)">
                         <div class="bg-valBg/60 p-6 rounded-xl border border-yellow-500/30 relative">
                             <div class="absolute -top-3 -left-1 bg-yellow-500 text-black font-mono text-[9px] font-black px-2.5 py-0.5 rounded uppercase">BƯỚC 4</div>
                             <div class="flex items-start gap-4 mt-2">
@@ -688,6 +704,20 @@
                     </div>
                 </div>
 
+            </div>
+        </section>
+
+        <section id="freeagents-tab" class="tab-content hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="mb-6">
+                    <h3 class="font-display text-xl font-black text-white uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-user-plus text-valCyan"></i>Tuyển Thủ Tự Do
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-1">Những người chơi chưa có đội. Bạn có thể mời họ qua Discord.</p>
+                </div>
+                <div id="freeagents-browser" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-spinner animate-spin mr-2"></i>Đang tải...</div>
+                </div>
             </div>
         </section>
 
@@ -2152,6 +2182,26 @@
                 </div>
             </div>
             <button onclick="document.getElementById('guide-popup-channels').classList.add('hidden')" class="w-full mt-4 bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 py-2.5 rounded-lg font-bold hover:bg-indigo-500/30 transition">Đóng</button>
+        </div>
+    </div>
+
+    <!-- Guide Step Detail Popup -->
+    <div id="guide-detail-modal" class="guide-popup-overlay fixed inset-0 z-[999999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-valCard border border-gray-800 p-6 rounded-2xl max-w-md w-full shadow-2xl">
+            <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+                <div class="flex items-center gap-3">
+                    <i id="gd-icon" class="fa-solid fa-trophy text-2xl text-valCyan"></i>
+                    <div>
+                        <h3 id="gd-title" class="font-display text-lg font-bold text-white">Chi Tiết</h3>
+                        <p id="gd-time" class="text-[10px] text-gray-500 font-mono mt-0.5"><i class="fa-regular fa-clock mr-1"></i>Đang cập nhật</p>
+                    </div>
+                </div>
+                <button onclick="closeGuidePopup()" class="text-gray-500 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p id="gd-desc" class="text-sm text-gray-400 mb-4 leading-relaxed"></p>
+            <ul id="gd-list" class="space-y-2 mb-5"></ul>
+            <div id="gd-action" class="text-center"></div>
+            <button onclick="closeGuidePopup()" class="w-full mt-4 bg-gray-800 text-gray-400 border border-gray-700 py-2.5 rounded-lg font-bold hover:bg-gray-700 transition">Đóng</button>
         </div>
     </div>
 

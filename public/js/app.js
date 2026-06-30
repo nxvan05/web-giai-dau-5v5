@@ -306,24 +306,39 @@
                     avatarEl.classList.add('hidden');
                 }
 
-                // Info
+                // Info — enhanced player profile
                 const teamName = data.team ? data.team.name : p.teamId || 'Tự do';
                 const ss = data.seasonStats || {};
+                const kda = data.kda || {};
+                const k = kda.kills || 0, d = kda.deaths || 0, a = kda.assists || 0;
+                const totalGames = p.wins + p.losses;
+                const winRate = totalGames > 0 ? Math.round(p.wins / totalGames * 100) : 0;
+                const kdaRatio = d > 0 ? ((k + a) / d).toFixed(2) : (k + a > 0 ? (k + a).toFixed(2) : '0.00');
+                const totalMatches_ = ss.totalMatches || 0;
+                // Estimate HS% from kills (not available from API, show placeholder if no data)
+                const hasMatchData = totalMatches_ > 0 || totalGames > 0;
                 document.getElementById('profile-info').innerHTML =
-                    '<div class="col-span-2 grid grid-cols-3 gap-2 mb-3">' +
-                    '<div class="bg-valBg/80 border border-gray-800 p-2 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block">Xếp hạng</span><span class="text-valCyan font-black text-base">#' + (ss.playerRank || '—') + '</span></div>' +
-                    '<div class="bg-valBg/80 border border-gray-800 p-2 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block">Mùa này</span><span class="text-white font-bold text-base">' + (ss.totalMatches || 0) + ' trận</span></div>' +
-                    '<div class="bg-valBg/80 border border-gray-800 p-2 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block">Win Rate</span><span class="text-emerald-400 font-black text-base">' + (p.wins + p.losses > 0 ? Math.round(p.wins / (p.wins + p.losses) * 100) : 0) + '%</span></div>' +
+                    '<div class="col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">' +
+                    '<div class="bg-gradient-to-b from-valCyan/10 to-transparent border border-valCyan/20 p-2.5 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block mb-0.5">Xếp Hạng</span><span class="text-valCyan font-black text-lg">#' + (ss.playerRank || '—') + '</span></div>' +
+                    '<div class="bg-gradient-to-b from-emerald-500/10 to-transparent border border-emerald-500/20 p-2.5 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block mb-0.5">Win Rate</span><span class="text-emerald-400 font-black text-lg">' + winRate + '%</span></div>' +
+                    '<div class="bg-gradient-to-b from-yellow-500/10 to-transparent border border-yellow-500/20 p-2.5 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block mb-0.5">KDA</span><span class="text-yellow-400 font-black text-lg">' + kdaRatio + '</span></div>' +
+                    '<div class="bg-gradient-to-b from-purple-500/10 to-transparent border border-purple-500/20 p-2.5 rounded-xl text-center"><span class="text-[9px] text-gray-500 uppercase block mb-0.5">Elo</span><span class="text-purple-400 font-black text-lg">' + p.elo + '</span></div>' +
                     '</div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Discord ID</span><span class="text-white font-bold">' + (p.discordId || '—') + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Rank</span><span class="text-white font-bold">' + (p.rank || '—') + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Peak Rank</span><span class="text-yellow-400 font-bold">' + (p.peakRank || p.rank || '—') + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Elo</span><span class="text-yellow-400 font-bold text-base">' + p.elo + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Vai trò</span><span class="text-white font-bold">' + (p.role || '—') + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">W / L</span><span class="text-emerald-400 font-bold">' + p.wins + '</span><span class="text-gray-500 mx-1">/</span><span class="text-red-400 font-bold">' + p.losses + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">MVP</span><span class="text-yellow-400 font-bold text-base">' + p.mvps + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">Đội</span><span class="text-valCyan font-bold">' + teamName + '</span></div>' +
-                    '<div class="bg-valBg border border-gray-800 p-3 rounded-xl"><span class="text-gray-500 block">KDA</span><span class="text-white font-bold">' + data.kda.kills + ' / ' + data.kda.deaths + ' / ' + data.kda.assists + '</span></div>';
+                    '<div class="col-span-2 bg-valBg/60 border border-gray-800 p-3 rounded-xl"><div class="flex items-center gap-2"><i class="fa-solid fa-gamepad text-valCyan"></i><span class="text-gray-500 text-[10px] uppercase tracking-wider">Thông Tin Tuyển Thủ</span></div><div class="grid grid-cols-2 gap-2 mt-2">' +
+                    '<div><span class="text-[10px] text-gray-500">Riot ID</span><p class="text-white font-bold truncate">' + (p.riotId || '—') + '</p></div>' +
+                    '<div><span class="text-[10px] text-gray-500">Rank Hiện Tại</span><p class="text-white font-bold">' + (p.rank || '—') + '</p></div>' +
+                    '<div><span class="text-[10px] text-gray-500">Peak Rank</span><p class="text-yellow-400 font-bold">' + (p.peakRank || p.rank || '—') + '</p></div>' +
+                    '<div><span class="text-[10px] text-gray-500">Vai Trò</span><p class="text-white font-bold">' + (p.role || '—') + '</p></div>' +
+                    '</div></div>' +
+                    '<div class="col-span-2 bg-valBg/60 border border-gray-800 p-3 rounded-xl"><div class="flex items-center gap-2"><i class="fa-solid fa-chart-simple text-emerald-400"></i><span class="text-gray-500 text-[10px] uppercase tracking-wider">Chỉ Số Thi Đấu</span></div><div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">' +
+                    '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">K / D / A</span><span class="text-white font-mono font-bold text-sm">' + k + ' / ' + d + ' / ' + a + '</span></div>' +
+                    '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">W / L</span><span class="text-emerald-400 font-mono font-bold text-sm">' + p.wins + '</span><span class="text-gray-500 mx-0.5">/</span><span class="text-red-400 font-mono font-bold text-sm">' + p.losses + '</span></div>' +
+                    '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">MVP</span><span class="text-yellow-400 font-mono font-bold text-sm">' + (p.mvps || 0) + '</span></div>' +
+                    '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">Số Trận</span><span class="text-white font-mono font-bold text-sm">' + totalGames + '</span></div>' +
+                    '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">Trận Mùa Này</span><span class="text-white font-mono font-bold text-sm">' + totalMatches_ + '</span></div>' +
+                    '<div class="bg-valBg/80 border border-gray-800/80 p-2 rounded-lg text-center"><span class="text-[9px] text-gray-500 uppercase block">Đội</span><span class="text-valCyan font-mono font-bold text-sm truncate block">' + teamName + '</span></div>' +
+                    '</div></div>' +
+                    '<div class="col-span-2 bg-valBg/60 border border-gray-800 p-3 rounded-xl"><div class="flex items-center gap-2"><i class="fa-solid fa-shield text-indigo-400"></i><span class="text-gray-500 text-[10px] uppercase tracking-wider">Discord</span></div><div class="flex items-center gap-2 mt-2"><span class="text-[10px] text-gray-500">ID:</span><span class="text-white font-mono text-xs">' + (p.discordId || '—') + '</span></div></div>';
 
                 // Charts
                 destroyProfileCharts();
@@ -2181,6 +2196,38 @@ async function generateSchedule() {
             } catch(e) {}
         }
 
+        async function loadFreeAgentsBrowser() {
+            const container = document.getElementById('freeagents-browser');
+            if (!container) return;
+            try {
+                const agents = await api('/api/players/free-agents');
+                if (!agents || agents.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-users-slash text-3xl mb-2"></i><p>Không có tuyển thủ tự do</p></div>';
+                    return;
+                }
+                container.innerHTML = agents.map(p => {
+                    const name = p.displayName || p.discordId;
+                    const avatar = p.discordAvatar ? '<img src="https://cdn.discordapp.com/avatars/' + p.discordId + '/' + p.discordAvatar + '.png?size=64" class="w-10 h-10 rounded-full border border-gray-700">' : '<div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-gray-600"><i class="fa-solid fa-user"></i></div>';
+                    const rankClass = p.rank && p.rank.includes('Immortal') ? 'text-red-400' : p.rank && p.rank.includes('Diamond') ? 'text-cyan-300' : 'text-gray-300';
+                    return '<div class="bg-valCard border border-gray-800 rounded-xl p-3 hover:border-valCyan/30 transition cursor-pointer" onclick="openProfile(\'' + p.discordId + '\')">' +
+                        '<div class="flex items-center gap-3">' +
+                            avatar +
+                            '<div class="flex-1 min-w-0">' +
+                                '<p class="text-sm font-bold text-white truncate">' + name + '</p>' +
+                                '<div class="flex items-center gap-2 mt-0.5 text-[10px]">' +
+                                    '<span class="' + rankClass + ' font-mono">' + (p.rank || 'N/A') + '</span>' +
+                                    '<span class="text-gray-500">' + (p.role || 'N/A') + '</span>' +
+                                    '<span class="text-valCyan">' + (p.elo || '?') + ' elo</span>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            } catch(e) {
+                container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-exclamation-triangle text-3xl mb-2"></i><p>Lỗi tải dữ liệu</p></div>';
+            }
+        }
+
         async function loadFreeAgents() {
             showLoading('Đang tải danh sách tự do...');
             const container = document.getElementById('free-agent-list');
@@ -3357,6 +3404,7 @@ async function generateSchedule() {
             if (id === 'profile-tab') { loadPlayerProfile(); }
             if (id === 'schedule-tab') { renderSchedule(); }
             if (id === 'teams-tab') { loadTeamsBrowser(); }
+            if (id === 'freeagents-tab') { loadFreeAgentsBrowser(); }
             if (id === 'veto-tab') { loadVetoMatches(); }
             if (id === 'leaderboard-tab') { loadLeaderboard(); loadStandings(); }
             if (id === 'bracket-tab') { loadBracket(); }
@@ -3706,6 +3754,8 @@ async function generateSchedule() {
                 #main-logo:hover { animation: logoGlitch .4s steps(1) 2; filter: hue-rotate(90deg) contrast(1.5); transition: filter .3s; }
                 .tab-pulse-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-left:4px; vertical-align:middle; animation: pulseDot 1.5s ease-in-out infinite; }
                 @keyframes pulseDot { 0%,100%{opacity:1;box-shadow:0 0 4px rgba(34,197,94,0.6)} 50%{opacity:.3;box-shadow:0 0 8px rgba(34,197,94,0.2)} }
+                .animate-pulse-gold { animation: pulseGold 2s ease-in-out infinite; }
+                @keyframes pulseGold { 0%,100%{box-shadow:0 0 15px rgba(250,204,21,0.3)} 50%{box-shadow:0 0 30px rgba(250,204,21,0.6)} }
                 .energy-bar { height:8px; border-radius:99px; background:#1f2937; overflow:hidden; transition:all .3s; }
                 .energy-bar-fill { height:100%; border-radius:99px; transition:width .4s ease, background .4s ease; }
                 .map-banned::after { content:''; position:absolute; inset:0; background:linear-gradient(to top right, transparent 40%, rgba(255,70,85,0.25) 48%, rgba(255,70,85,0.4) 50%, rgba(255,70,85,0.25) 52%, transparent 60%); pointer-events:none; z-index:5; }
@@ -3938,3 +3988,44 @@ async function generateSchedule() {
                 setTimeout(() => tip.classList.remove('active'), 3000);
             }
         });
+
+        // Guide schedule detail popup
+        const guideSteps = [
+            { title: 'Mở Đăng Ký Giải', time: 'Đến 23:59 ngày 07/07', icon: 'fa-pen-to-square', color: 'valRed',
+              desc: 'Tuyển thủ điền thông tin tại tab Form Đăng Ký. Yêu cầu đăng nhập Discord + Riot ID hợp lệ.',
+              details: ['Đăng nhập Discord để bắt đầu', 'Điền Riot ID + rank hiện tại', 'Đăng ký theo hình thức Solo/Duo/Trio', 'Admin kiểm duyệt thông tin', 'Nhận Role Thi Đấu trên Discord'],
+              action: { label: 'Đăng Ký Ngay', tab: 'register-tab' } },
+            { title: 'Chốt Danh Sách Đội', time: '20h ngày 08/07', icon: 'fa-shuffle', color: 'valCyan',
+              desc: 'Ban tổ chức chốt danh sách đội dựa trên rank và vị trí. Hệ thống tự động cân bằng để đảm bảo công bằng.',
+              details: ['Draft ngẫu nhiên có kiểm soát', 'Cân bằng rank giữa các đội', 'Công bố danh sách trên Discord', 'Đội trưởng nhận quyền quản lý đội', 'Thời hạn đăng ký kết thúc'],
+              action: null },
+            { title: 'Khởi Tranh Vòng Bảng', time: '11-12/07 · 14:00', icon: 'fa-gamepad', color: 'gray-700',
+              desc: 'Các đội thi đấu vòng tròn BO1. Hai đội có điểm số cao nhất mỗi bảng giành vé vào Bán Kết.',
+              details: ['Thi đấu theo thể thức BO1', 'Tính điểm theo kết quả thắng/thua', 'Top 2 đội mỗi bảng đi tiếp', 'Có ban pick map trước trận', 'Trọng tài giám sát trực tiếp'],
+              action: { label: 'Xem Lịch Đấu', tab: 'schedule-tab' } },
+            { title: 'Bán Kết & Chung Kết', time: null, icon: 'fa-trophy', color: 'yellow-500',
+              desc: 'Vòng loại trực tiếp. Trận chung kết BO3 phát sóng trực tiếp kèm BLV trên kênh Discord.',
+              details: ['Bán Kết: BO3 loại trực tiếp', 'Tranh giải Ba: BO3', 'Chung Kết: BO3', 'Phát sóng trực tiếp với BLV', 'Công bố kết quả và trao thưởng'],
+              action: null }
+        ];
+        function openGuidePopup(step) {
+            const s = guideSteps[step - 1];
+            if (!s) return;
+            const popup = document.getElementById('guide-detail-modal');
+            document.getElementById('gd-icon').className = 'fa-solid ' + s.icon + ' text-3xl text-' + s.color;
+            document.getElementById('gd-title').textContent = s.title;
+            document.getElementById('gd-time').textContent = s.time || 'Đang cập nhật';
+            document.getElementById('gd-desc').textContent = s.desc;
+            document.getElementById('gd-list').innerHTML = s.details.map(d => '<li class="flex items-center gap-2 text-sm text-gray-400"><i class="fa-solid fa-check text-valCyan text-[10px]"></i>' + d + '</li>').join('');
+            const actionDiv = document.getElementById('gd-action');
+            if (s.action) {
+                actionDiv.innerHTML = '<button onclick="closeGuidePopup();switchTab(\'' + s.action.tab + '\')" class="px-6 py-2.5 rounded-xl text-sm font-bold transition bg-valRed text-white hover:bg-red-600">' + s.action.label + '</button>';
+                actionDiv.classList.remove('hidden');
+            } else {
+                actionDiv.classList.add('hidden');
+            }
+            popup.classList.remove('hidden');
+        }
+        function closeGuidePopup() {
+            document.getElementById('guide-detail-modal').classList.add('hidden');
+        }
