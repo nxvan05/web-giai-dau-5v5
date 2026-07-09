@@ -1,57 +1,60 @@
 {
-  "name": "evan-cup-backend",
-  "version": "1.0.0",
-  "description": "Backend for Evan Cup tournament",
-  "main": "src/server.js",
-  "scripts": {
-    "start": "git config branch.master.remote origin 2>/dev/null; git config branch.master.merge refs/heads/master 2>/dev/null; git pull --ff-only 2>/dev/null; node src/server.js",
-    "dev": "nodemon src/server.js",
-    "migrate": "npx prisma migrate deploy",
-    "test": "jest --forceExit --detectOpenHandles",
-    "test:watch": "jest --watch --forceExit --detectOpenHandles",
-    "bot": "node src/discord/bot.js",
-    "register-commands": "node -e \"require('./src/discord/bot').registerCommands()\"",
-    "postinstall": "chmod +x node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x 2>/dev/null; chmod +x node_modules/@prisma/engines/* 2>/dev/null; node node_modules/prisma/build/index.js generate && node node_modules/prisma/build/index.js db push || echo 'prisma setup failed (non-fatal)'",
-    "db:push": "npx prisma db push",
-    "db:seed": "node scripts/seed.js",
-    "db:studio": "npx prisma studio"
-  },
-  "dependencies": {
-    "@prisma/client": "^5.9.1",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.6",
-    "cors": "^2.8.5",
-    "discord.js": "^14.26.4",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^6.10.0",
-    "express-validator": "^7.0.1",
-    "helmet": "^7.0.0",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^2.2.0",
-    "node-cron": "^3.0.3",
-    "prisma": "^5.9.1",
-    "socket.io": "^4.8.3"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "roots": [
-      "<rootDir>/tests"
-    ],
-    "testMatch": [
-      "**/*.test.js"
-    ]
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^26.0.1",
-    "@types/node-cron": "^3.0.11",
-    "jest": "^30.4.2",
-    "nodemon": "^3.0.3",
-    "typescript": "^6.0.3"
-  }
+    "name": "evan-cup-backend",
+    "version": "1.0.0",
+    "description": "Backend for Evan Cup tournament",
+    "main": "src/server.js",
+    "scripts": {
+        "start": "git config branch.master.remote origin 2>/dev/null; git config branch.master.merge refs/heads/master 2>/dev/null; git pull --ff-only 2>/dev/null; node src/server.js",
+        "dev": "nodemon src/server.js",
+        "migrate": "npx prisma migrate deploy",
+        "test": "jest --forceExit --detectOpenHandles",
+        "test:watch": "jest --watch --forceExit --detectOpenHandles",
+        "bot": "node src/discord/bot.js",
+        "register-commands": "node -e \"require('./src/discord/bot').registerCommands()\"",
+        "postinstall": "chmod +x node_modules/@prisma/engines/schema-engine-debian-openssl-3.0.x 2>/dev/null; chmod +x node_modules/@prisma/engines/* 2>/dev/null; node node_modules/prisma/build/index.js generate && node node_modules/prisma/build/index.js db push || echo 'prisma setup failed (non-fatal)'",
+        "db:push": "npx prisma db push",
+        "db:seed": "node scripts/seed.js",
+        "db:studio": "npx prisma studio",
+        "admin:password": "node scripts/change-password.js"
+    },
+    "dependencies": {
+        "@prisma/client": "^5.9.1",
+        "adm-zip": "^0.5.18",
+        "bcryptjs": "^3.0.3",
+        "cookie-parser": "^1.4.6",
+        "cors": "^2.8.5",
+        "discord.js": "^14.26.4",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "express-rate-limit": "^6.10.0",
+        "express-validator": "^7.0.1",
+        "helmet": "^7.0.0",
+        "jsonwebtoken": "^9.0.2",
+        "multer": "^2.2.0",
+        "node-cron": "^3.0.3",
+        "prisma": "^5.9.1",
+        "socket.io": "^4.8.3"
+    },
+    "jest": {
+        "testEnvironment": "node",
+        "roots": [
+            "<rootDir>/tests"
+        ],
+        "testMatch": [
+            "**/*.test.js"
+        ]
+    },
+    "devDependencies": {
+        "@types/bcryptjs": "^2.4.6",
+        "@types/cookie-parser": "^1.4.10",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.6",
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/node": "^26.0.1",
+        "@types/node-cron": "^3.0.11",
+        "eslint": "^10.6.0",
+        "jest": "^30.4.2",
+        "nodemon": "^3.0.3",
+        "typescript": "^6.0.3"
+    }
 }

@@ -4,6 +4,7 @@ const { validationResult } = require('express-validator');
 const { getIO } = require('../utils/socket');
 const { notifyPlayerRegistered } = require('./webhookController');
 const { logAction } = require('../utils/audit');
+const { getPointsFromRank } = require('../utils/rankPoints');
 
 exports.getAll = async (req, res) => {
   const players = await prisma.player.findMany({ orderBy: { createdAt: 'desc' } });
@@ -15,7 +16,7 @@ exports.create = async (req, res) => {
   if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
   // admin auth: use body.discordId; discord auth: use JWT
   const discordId = req.discordUser ? req.discordUser.discordId : req.body.discordId;
-  const { displayName, riotId, rank, role, type, pts, peakRank, cardUrl, accountLevel } = req.body;
+  const { displayName, riotId, rank, role, type, pts, peakRank, cardUrl, accountLevel, discordAvatar, rankIconUrl } = req.body;
 
   if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
 
@@ -23,9 +24,13 @@ exports.create = async (req, res) => {
   if (existing) return res.status(409).json({ error: 'Discord ID này đã đăng ký rồi' });
 
   const data = {
-    displayName, discordId, riotId, rank, role, type, pts: parseInt(pts) || 0
+    displayName, discordId, riotId, rank, role, type, pts: parseInt(pts) || getPointsFromRank(peakRank || rank)
   };
   if (peakRank) data.peakRank = peakRank;
+  if (discordAvatar) data.discordAvatar = discordAvatar;
+  if (cardUrl) data.cardUrl = cardUrl;
+  if (accountLevel) data.accountLevel = parseInt(accountLevel);
+  if (rankIconUrl) data.rankIconUrl = rankIconUrl;
 
   const player = await prisma.player.create({ data });
   notifyPlayerRegistered(player).catch(err => log.error('Caught error', { error: err.message }));
@@ -47,7 +52,7 @@ exports.updatePartial = async (req, res) => {
   // If discordUser, only allow safe fields. If admin, allow all fields.
   const allowed = req.discordUser 
     ? ['displayName', 'riotId', 'rank', 'role', 'type', 'cardUrl', 'accountLevel'] 
-    : ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps', 'peakRank'];
+    : ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps', 'peakRank', 'discordAvatar'];
   const data = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) {
@@ -81,6 +86,23 @@ exports.update = async (req, res) => {
 exports.delete = async (req, res) => {
   const { id } = req.params;
   try {
+    const player = await prisma.player.findUnique({ where: { id } });
+    if (player && player.teamId) {
+      const team = await prisma.team.findFirst({ where: { name: player.teamId } });
+      if (team) {
+        let roster = JSON.parse(team.rosterJson || '[]');
+        let subs = [];
+        try { subs = JSON.parse(team.substitutesJson || '[]'); } catch(e) {}
+        
+        roster = roster.filter(pid => pid !== player.discordId);
+        subs = subs.filter(pid => pid !== player.discordId);
+        
+        await prisma.team.update({
+          where: { id: team.id },
+          data: { rosterJson: JSON.stringify(roster), substitutesJson: JSON.stringify(subs) }
+        });
+      }
+    }
     await prisma.player.delete({ where: { id } });
     res.status(204).send();
   } catch (e) {
@@ -127,6 +149,10 @@ exports.getProfile = async (req, res, next) => {
     const totalMatches = await prisma.match.count();
     const playerRank = (await prisma.player.findMany({ orderBy: { elo: 'desc' }, select: { id: true } })).findIndex(p => p.id === player.id) + 1;
 
+    // Luôn tính PTS động từ peak rank
+    const { getPointsFromRank } = require('../utils/rankPoints');
+    const computedPts = getPointsFromRank(player.peakRank || player.rank);
+    player.pts = computedPts;
     res.json({ player, team, matchHistory, eloHistory, kda: { kills: stats._sum.kills || 0, deaths: stats._sum.deaths || 0, assists: stats._sum.assists || 0 }, seasonStats: { totalPlayers, totalTeams, totalMatches, playerRank } });
   } catch (e) { next(e); }
 };

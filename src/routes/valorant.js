@@ -6,7 +6,7 @@ router.get('/lookup', (req, res) => {
   res.json({ status: 'ok', message: 'Valorant lookup route is working. Use POST with { riotId: "Name#Tag" }' });
 });
 
-router.post('/lookup', async (req, res) => {
+router.post('/lookup', async (req, res, next) => {
   try {
     const { riotId, region } = req.body;
     if (!riotId) return res.status(400).json({ error: 'Riot ID là bắt buộc (VD: ShadowStrike#VN)' });
@@ -37,7 +37,8 @@ router.post('/lookup', async (req, res) => {
       elo: data.current_data?.elo || data.current_data?.ranking_in_tier || 0,
       region: data.region || reg,
       cardUrl: accountData?.card?.large || null,
-      accountLevel: accountData?.account_level || 0
+      accountLevel: accountData?.account_level || 0,
+      rankIconUrl: data.current_data?.images?.small || data.highest_rank?.images?.small || ''
     });
   } catch (e) {
     const isApiKeyError = e.message.includes('API key') || e.message.includes('HENRIKDEV');

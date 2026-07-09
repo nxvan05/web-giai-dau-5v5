@@ -23,17 +23,29 @@ const app = express();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+const CSP_DIRECTIVES = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.tailwindcss.com", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net", "https://cdn.socket.io"],
+  scriptSrcAttr: ["'unsafe-inline'"],
+  styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://cdn.tailwindcss.com", "https://fonts.googleapis.com"],
+  imgSrc: ["'self'", "data:", "https://media.valorant-api.com", "https://cdn.discordapp.com"],
+  connectSrc: ["'self'", "https://api.henrikdev.xyz", "https://cdn.socket.io", "https://cdn.jsdelivr.net"],
+  fontSrc: ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
+  mediaSrc: ["'self'"]
+};
+
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: { useDefaults: false, directives: CSP_DIRECTIVES },
   crossOriginEmbedderPolicy: false,
   crossOriginOpenerPolicy: { policy: 'unsafe-none' },
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  hsts: false
 }));
 
 app.use((req, res, next) => {
-  if (req.headers['x-forwarded-proto'] === 'http' && !req.headers.host?.startsWith('localhost')) {
-    return res.redirect('https://' + req.headers.host + req.url);
-  }
+  // if (req.headers['x-forwarded-proto'] === 'http' && !req.headers.host?.startsWith('localhost')) {
+  //   return res.redirect('https://' + req.headers.host + req.url);
+  // }
   next();
 });
 
@@ -75,7 +87,7 @@ app.use('/api/audit', require('./routes/audit'));
 app.use('/api/veto', require('./routes/veto'));
 app.use('/api/notify', require('./routes/notifications'));
 // app.use('/api/disputes', require('./routes/disputes')); // disabled for small tournament
-// app.use('/api/stream', require('./routes/stream')); // disabled for small tournament
+app.use('/api/stream', require('./routes/stream')); // ENABLED
 app.use('/api/discord', require('./routes/discord'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/valorant', require('./routes/valorant'));
@@ -133,14 +145,17 @@ server.listen(PORT, '0.0.0.0', () => {
 
 // Auto-seed admin account (only if no admin exists)
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 (async () => {
   try {
     const prisma = require('./utils/prisma');
     const existingAdmin = await prisma.admin.findFirst();
     if (!existingAdmin) {
-      const hash = await bcrypt.hash('evankk123', 12);
+      const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(8).toString('hex');
+      const hash = await bcrypt.hash(defaultPassword, 12);
       await prisma.admin.create({ data: { username: 'evan', password: hash } });
-      console.log('Admin account created (default). Please change the password.');
+      console.log(`Admin account created. Username: evan, Password: ${defaultPassword}`);
+      console.log('IMPORTANT: Change this password immediately via "npm run admin:password"');
     }
   } catch (e) {
     console.error('Admin seed error:', e.message);

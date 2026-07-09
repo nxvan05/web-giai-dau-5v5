@@ -65,6 +65,16 @@ router.post('/:matchId/init', orAuth, async (req, res, next) => {
     const match = await prisma.match.findUnique({ where: { id: matchId } });
     if (!match) return res.status(404).json({ error: 'Match không tồn tại' });
 
+    const isAdmin = !!req.user;
+    if (!isAdmin) {
+      const discordId = req.discordUser?.discordId;
+      const allowedAsTeam1 = await checkCaptain(matchId, discordId, 1);
+      const allowedAsTeam2 = await checkCaptain(matchId, discordId, 2);
+      if (!discordId || (!allowedAsTeam1 && !allowedAsTeam2)) {
+        return res.status(403).json({ error: 'Chi doi truong hoac admin moi duoc bat dau VETO' });
+      }
+    }
+
     const veto = {
       matchId,
       team1Name: match.team1Name,

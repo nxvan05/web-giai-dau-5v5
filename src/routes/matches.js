@@ -9,6 +9,25 @@ const { body } = require('express-validator');
 const validate = require('../middleware/validate');
 const { applyEloChanges } = require('../utils/elo');
 
+function toScore(value, fallback = 0) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function getWinnerFromScores(team1Name, team2Name, score1, score2) {
+  if (score1 > score2) return team1Name;
+  if (score2 > score1) return team2Name;
+  return null;
+}
+
+function normalizeReportScores(match, reportingTeamName, ownScore, opponentScore) {
+  if (reportingTeamName === match.team1Name) {
+    return { score1: ownScore, score2: opponentScore };
+  }
+  return { score1: opponentScore, score2: ownScore };
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const { skip, limit, page } = getPagination(req);
@@ -48,25 +67,30 @@ router.put('/:id', auth,
       const existing = await prisma.match.findUnique({ where: { id } });
       if (!existing) return res.status(404).json({ error: 'Trận đấu không tồn tại' });
 
+      const nextScore1 = toScore(score1, existing.score1);
+      const nextScore2 = toScore(score2, existing.score2);
       let winner = existing.winner;
       if (forfeit === existing.team1Name) { winner = existing.team2Name; }
       else if (forfeit === existing.team2Name) { winner = existing.team1Name; }
       else if (!forfeit) {
-        const s1 = score1 ?? existing.score1;
-        const s2 = score2 ?? existing.score2;
-        if (s1 > s2) winner = existing.team1Name;
-        else if (s2 > s1) winner = existing.team2Name;
+        winner = getWinnerFromScores(existing.team1Name, existing.team2Name, nextScore1, nextScore2);
       }
 
       const match = await prisma.match.update({
         where: { id },
         data: {
-          score1: forfeit ? (forfeit === existing.team1Name ? 0 : (score1 ?? existing.score1)) : (score1 ?? existing.score1),
-          score2: forfeit ? (forfeit === existing.team2Name ? 0 : (score2 ?? existing.score2)) : (score2 ?? existing.score2),
+          score1: forfeit ? (forfeit === existing.team1Name ? 0 : nextScore1) : nextScore1,
+          score2: forfeit ? (forfeit === existing.team2Name ? 0 : nextScore2) : nextScore2,
           map: map || existing.map, status: status || 'completed', winner,
           streamUrl: streamUrl !== undefined ? streamUrl : existing.streamUrl
         }
       });
+
+      if (match.status === 'completed' && winner) {
+        try {
+          await applyEloChanges(match.id, match.team1Name, match.team2Name, winner);
+        } catch (e) { /* non-critical */ }
+      }
       
       const io = getIO();
       if (io) io.emit('data:updated', { type: 'match', id: match.id });
@@ -157,7 +181,6 @@ router.post('/generate', auth, async (req, res, next) => {
         created.push(match);
         t += dur;
       }
-      const { getIO } = require('../utils/socket');
       const io = getIO();
       if (io) io.emit('matches:generated', { count: pairs.length, format: 'swiss' });
       return res.status(201).json({ count: pairs.length, matches: created });
@@ -179,12 +202,45 @@ router.post('/generate', auth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/leaderboard', async (req, res) => {
-  const players = await prisma.player.findMany({ orderBy: [{ wins: 'desc' }, { elo: 'desc' }], take: 100 });
-  res.json(players.map((p, i) => ({ rank: i + 1, displayName: p.displayName, elo: p.elo, rankName: p.rank, wins: p.wins, losses: p.losses, mvps: p.mvps, discordId: p.discordId })));
+router.get('/leaderboard', async (req, res, next) => {
+  try {
+    let players = await prisma.player.findMany();
+    
+    // Sort logic: parse Score from adminEvaluation, fallback to wins & elo
+    players.sort((a, b) => {
+      const scoreA = a.adminEvaluation ? parseFloat(a.adminEvaluation.replace(/[^0-9.]/g, '')) || 0 : 0;
+      const scoreB = b.adminEvaluation ? parseFloat(b.adminEvaluation.replace(/[^0-9.]/g, '')) || 0 : 0;
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      if (a.wins !== b.wins) return b.wins - a.wins;
+      return b.elo - a.elo;
+    });
+    
+    players = players.slice(0, 100);
+    
+    const { getPointsFromRank } = require('../utils/rankPoints');
+    res.json(players.map((p, i) => ({ 
+      rank: i + 1, 
+      displayName: p.displayName, 
+      elo: p.elo, // Keep in JSON for fallback or debug, UI will hide it
+      rankName: p.rank, 
+      peakRank: p.peakRank, 
+      rankIconUrl: p.rankIconUrl, 
+      peakIconUrl: p.peakIconUrl || p.rankIconUrl, 
+      pts: getPointsFromRank(p.peakRank || p.rank), 
+      wins: p.wins, 
+      losses: p.losses, 
+      mvps: p.mvps, 
+      discordId: p.discordId, 
+      teamId: p.teamId, 
+      discordAvatar: p.discordAvatar,
+      headshotPct: p.headshotPct || 0,
+      adminEvaluation: p.adminEvaluation || '',
+      role: p.role || 'Flex'
+    })));
+  } catch(e) { next(e); }
 });
 
-router.get('/standings', async (req, res) => {
+router.get('/standings', async (req, res, next) => {
   const matches = await prisma.match.findMany({ where: { status: 'completed' } });
   const groups = {};
   for (const m of matches) {
@@ -199,8 +255,9 @@ router.get('/standings', async (req, res) => {
     else if (m.winner === m.team2Name) { groups[g][m.team2Name].wins++; groups[g][m.team2Name].pts += 3; groups[g][m.team1Name].losses++; }
   }
   const sorted = {};
+  const allTeams = await prisma.team.findMany();
   for (const [g, teams] of Object.entries(groups)) {
-    const arr = Object.entries(teams).map(([name, s]) => ({ name, ...s }));
+    const arr = Object.entries(teams).map(([name, s]) => { const t = allTeams.find(x => x.name === name); return { name, logo: t?.logo, color: t?.color, ...s }; });
     arr.sort((a, b) => {
       if (b.pts !== a.pts) return b.pts - a.pts;
       const h2h = matches.filter(m => (m.team1Name === a.name && m.team2Name === b.name) || (m.team1Name === b.name && m.team2Name === a.name));
@@ -214,7 +271,7 @@ router.get('/standings', async (req, res) => {
   res.json(sorted);
 });
 
-router.get('/player/:discordId/upcoming', async (req, res) => {
+router.get('/player/:discordId/upcoming', async (req, res, next) => {
   const { discordId } = req.params;
   const player = await prisma.player.findFirst({ where: { discordId } });
   if (!player) return res.status(404).json({ error: 'Player not found' });
@@ -225,134 +282,6 @@ router.get('/player/:discordId/upcoming', async (req, res) => {
   res.json(matches);
 });
 
-router.get('/stats', auth, async (req, res, next) => {
-  try {
-    const [players, matches, checkins] = await Promise.all([prisma.player.count(), prisma.match.count(), prisma.checkIn.count()]);
-    const completed = await prisma.match.count({ where: { status: 'completed' } });
-    const pending = await prisma.match.count({ where: { status: 'pending' } });
-    const totalElo = await prisma.player.aggregate({ _sum: { elo: true } });
-    res.json({ players, matches, completed, pending, checkins, totalElo: totalElo._sum.elo || 0 });
-  } catch (e) { next(e); }
-});
-
-router.get('/team/:teamName', async (req, res) => {
-  const { teamName } = req.params;
-  const matches = await prisma.match.findMany({
-    where: { OR: [{ team1Name: teamName }, { team2Name: teamName }] },
-    orderBy: { scheduledAt: 'asc' }
-  });
-  res.json(matches.map(m => ({ ...m, isTeam1: m.team1Name === teamName, result: m.winner ? (m.winner === teamName ? 'win' : 'loss') : 'pending' })));
-});
-
-router.get('/player/:discordId', async (req, res) => {
-  const { discordId } = req.params;
-  const player = await prisma.player.findFirst({ where: { discordId } });
-  if (!player) return res.status(404).json({ error: 'Player not found' });
-  const matches = await prisma.match.findMany({
-    where: { OR: [{ team1Name: player.teamId || '' }, { team2Name: player.teamId || '' }] },
-    orderBy: { scheduledAt: 'asc' }
-  });
-  res.json(matches.map(m => ({ ...m, isTeam1: m.team1Name === (player.teamId || ''), result: m.winner ? (m.winner === (player.teamId || '') ? 'win' : 'loss') : 'pending' })));
-});
-
-// H2H: compare two players' match history
-router.get('/h2h/:discordId1/:discordId2', async (req, res) => {
-  try {
-    const { discordId1, discordId2 } = req.params;
-    const [p1, p2] = await Promise.all([
-      prisma.player.findFirst({ where: { discordId: discordId1 } }),
-      prisma.player.findFirst({ where: { discordId: discordId2 } })
-    ]);
-    if (!p1 || !p2) return res.status(404).json({ error: 'Player not found' });
-    const matches1 = await prisma.match.findMany({
-      where: {
-        OR: [{ team1Name: p1.teamId || '' }, { team2Name: p1.teamId || '' }],
-        status: 'completed'
-      },
-      orderBy: { scheduledAt: 'desc' }, take: 50
-    });
-    const matches2 = await prisma.match.findMany({
-      where: {
-        OR: [{ team1Name: p2.teamId || '' }, { team2Name: p2.teamId || '' }],
-        status: 'completed'
-      },
-      orderBy: { scheduledAt: 'desc' }, take: 50
-    });
-    // Find common matches where both players' teams faced each other
-    const common = [];
-    for (const m1 of matches1) {
-      const m2 = matches2.find(m => m.id === m1.id);
-      if (m2) {
-        if ((m1.team1Name === p1.teamId && m1.team2Name === p2.teamId) || (m1.team2Name === p1.teamId && m1.team1Name === p2.teamId)) {
-          const isTeam1P1 = m1.team1Name === p1.teamId;
-          common.push({
-            id: m1.id, score1: m1.score1, score2: m1.score2, map: m1.map, status: m1.status, scheduledAt: m1.scheduledAt,
-            p1Win: m1.winner === p1.teamId, p2Win: m1.winner === p2.teamId,
-            p1Score: isTeam1P1 ? m1.score1 : m1.score2,
-            p2Score: isTeam1P1 ? m1.score2 : m1.score1
-          });
-        }
-      }
-    }
-    const p1Wins = common.filter(m => m.p1Win).length;
-    const p2Wins = common.filter(m => m.p2Win).length;
-    res.json({ p1: { displayName: p1.displayName, discordId: p1.discordId, wins: p1Wins, elo: p1.elo }, p2: { displayName: p2.displayName, discordId: p2.discordId, wins: p2Wins, elo: p2.elo }, matches: common });
-  } catch (e) { next(e); }
-});
-
-router.get('/:id/detail', async (req, res, next) => {
-  try {
-    const match = await prisma.match.findUnique({ where: { id: req.params.id } });
-    if (!match) return res.status(404).json({ error: 'Match not found' });
-    const [team1Roster, team2Roster, playerStats] = await Promise.all([
-      prisma.player.findMany({ where: { teamId: match.team1Name } }),
-      prisma.player.findMany({ where: { teamId: match.team2Name } }),
-      prisma.matchPlayerStat.findMany({ where: { matchId: match.id } })
-    ]);
-    res.json({ match, team1Roster, team2Roster, playerStats });
-  } catch (e) { next(e); }
-});
-
-// === Captain Score Reporting ===
-router.post('/:id/report-score', discordAuth,
-  body('teamName').trim().notEmpty().withMessage('Tên đội không được để trống'),
-  body('score1').isInt({ min: 0 }).withMessage('Tỉ số không hợp lệ'),
-  body('score2').isInt({ min: 0 }).withMessage('Tỉ số không hợp lệ'),
-  validate,
-  async (req, res, next) => {
-    try {
-      const match = await prisma.match.findUnique({ where: { id: req.params.id } });
-      if (!match) return res.status(404).json({ error: 'Trận không tồn tại' });
-      if (match.team1Name !== req.body.teamName && match.team2Name !== req.body.teamName) {
-        return res.status(400).json({ error: 'Bạn không thuộc trận này' });
-      }
-      const existing = await prisma.scoreReport.findFirst({ where: { matchId: match.id, reportedByDiscordId: req.discordUser.discordId, status: 'pending' } });
-      if (existing) return res.status(400).json({ error: 'Bạn đã gửi báo cáo cho trận này rồi' });
-      const report = await prisma.scoreReport.create({
-        data: {
-          matchId: match.id, reportedByDiscordId: req.discordUser.discordId, reportedByName: req.discordUser.discordUsername,
-          teamName: req.body.teamName, score1: req.body.score1, score2: req.body.score2, map: req.body.map || null, screenshot: req.body.screenshot || null
-        }
-      });
-      const io = getIO();
-      if (io) io.emit('score:report', report);
-      try { const { createNotification } = require('./notifications'); createNotification('info', 'Báo cáo kết quả từ ' + req.discordUser.discordUsername + ' cho trận ' + match.team1Name + ' vs ' + match.team2Name, { matchId: match.id, reportId: report.id }); } catch(e) {}
-      res.status(201).json(report);
-    } catch (e) { next(e); }
-  }
-);
-
-router.get('/score-reports', auth, async (req, res, next) => {
-  try {
-    const reports = await prisma.scoreReport.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
-    const enriched = await Promise.all(reports.map(async r => {
-      const match = await prisma.match.findUnique({ where: { id: r.matchId } });
-      return { ...r, match };
-    }));
-    res.json(enriched);
-  } catch (e) { next(e); }
-});
-
 router.put('/score-reports/:id/approve', auth, async (req, res, next) => {
   try {
     const report = await prisma.scoreReport.findUnique({ where: { id: req.params.id } });
@@ -360,20 +289,20 @@ router.put('/score-reports/:id/approve', auth, async (req, res, next) => {
     if (report.status !== 'pending') return res.status(400).json({ error: 'Report already resolved' });
     const match = await prisma.match.findUnique({ where: { id: report.matchId } });
     if (!match) return res.status(404).json({ error: 'Match not found' });
-    let winner = report.score1 > report.score2 ? report.teamName : (report.score1 < report.score2 ? (match.team1Name === report.teamName ? match.team2Name : match.team1Name) : null);
-    await prisma.match.update({ where: { id: match.id }, data: { score1: report.score1, score2: report.score2, map: report.map || match.map, status: 'completed', winner } });
+    if (match.status === 'completed') return res.status(400).json({ error: 'Match already completed' });
+    const winner = getWinnerFromScores(match.team1Name, match.team2Name, report.score1, report.score2);
+    const updatedMatch = await prisma.match.update({ where: { id: match.id }, data: { score1: report.score1, score2: report.score2, map: report.map || match.map, status: 'completed', winner } });
     await prisma.scoreReport.update({ where: { id: report.id }, data: { status: 'approved', resolvedAt: new Date(), resolvedBy: req.user.username || 'admin' } });
-    // ELO calculation
     try {
       await applyEloChanges(match.id, match.team1Name, match.team2Name, winner);
     } catch (e) { /* non-critical */ }
     const io = getIO();
     if (io) {
-      io.emit('match:result', match);
+      io.emit('match:result', updatedMatch);
       io.emit('data:updated', { type: 'stats', matchId: match.id });
     }
     try { const { createNotification } = require('./notifications'); createNotification('match_result', 'Kết quả đã được xác nhận: ' + match.team1Name + ' ' + report.score1 + '-' + report.score2 + ' ' + match.team2Name, { matchId: match.id }); } catch(e) {}
-    res.json({ message: 'Đã duyệt báo cáo', report, match });
+    res.json({ message: 'Đã duyệt báo cáo', report, match: updatedMatch });
   } catch (e) { next(e); }
 });
 

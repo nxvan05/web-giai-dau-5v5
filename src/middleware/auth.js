@@ -1,41 +1,56 @@
 const jwt = require('jsonwebtoken');
 
+function getBearerToken(req) {
+  const authHeader = req.headers.authorization;
+  return authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+}
+
+function getAdminDiscordIds() {
+  return (process.env.ADMIN_DISCORD_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
+}
+
+function setDiscordAdminUser(req, decoded) {
+  req.user = {
+    id: decoded.playerId,
+    username: decoded.discordUsername,
+    discordId: decoded.discordId,
+    isAdmin: true
+  };
+}
+
 module.exports = (req, res, next) => {
   // 1. Try admin JWT token (password-based login)
-  let token = req.cookies.token;
-  const authHeader = req.headers.authorization;
-  if (!token && authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.slice(7);
-  }
+  const bearerToken = getBearerToken(req);
+  let token = req.cookies?.token;
+  if (!token && bearerToken && bearerToken !== 'discord_admin') token = bearerToken;
 
   if (token && token !== 'discord_admin') {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = decoded;
-      return next();
+      if (decoded.type !== 'discord') {
+        req.user = decoded;
+        return next();
+      }
+
+      if (getAdminDiscordIds().includes(decoded.discordId)) {
+        setDiscordAdminUser(req, decoded);
+        return next();
+      }
     } catch (err) {
       // Fall through to discord token
     }
   }
 
   // 2. Try discord_token cookie (Discord OAuth login)
-  let discordToken = req.cookies.discord_token;
-  if (!discordToken && authHeader && authHeader.startsWith('Bearer ') && authHeader.slice(7) !== 'discord_admin') {
-    discordToken = authHeader.slice(7);
-  }
+  let discordToken = req.cookies?.discord_token;
+  if (!discordToken && bearerToken && bearerToken !== 'discord_admin') discordToken = bearerToken;
 
   if (discordToken) {
     try {
       const decoded = jwt.verify(discordToken, process.env.JWT_SECRET);
       if (decoded.type === 'discord') {
-        const adminIds = (process.env.ADMIN_DISCORD_IDS || '').split(',').map(id => id.trim());
-        if (adminIds.includes(decoded.discordId)) {
-          req.user = {
-            id: decoded.playerId,
-            username: decoded.discordUsername,
-            discordId: decoded.discordId,
-            isAdmin: true
-          };
+        if (getAdminDiscordIds().includes(decoded.discordId)) {
+          setDiscordAdminUser(req, decoded);
           return next();
         }
       }

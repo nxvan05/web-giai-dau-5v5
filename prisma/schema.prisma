@@ -16,24 +16,33 @@ model Admin {
 }
 
 model Player {
-  id           String   @id @default(cuid())
-  displayName  String
-  discordId    String   @unique
-  riotId       String
-  rank         String
-  role         String
-  type         String
-  cardUrl      String?  @default("")
-  accountLevel Int?     @default(0)
-  pts           Int      @default(0)
-  elo           Int      @default(1200)
-  peakRank      String?
-  wins          Int      @default(0)
-  losses        Int      @default(0)
-  mvps          Int      @default(0)
-  achievements  String?  @default("[]")
-  teamId        String?
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  displayName    String
+  discordId      String   @unique
+  riotId         String
+  rank           String
+  role           String
+  type           String
+  cardUrl        String?  @default("")
+  accountLevel   Int?     @default(0)
+  discordAvatar  String? @default("")
+  rankIconUrl    String?  @default("")
+  rankIconLarge  String?  @default("")
+  peakIconUrl    String?  @default("")
+  peakIconLarge  String?  @default("")
+  headshotPct    Float?
+  shotsTotal     Int?     @default(0)
+  matchStatsUpdatedAt DateTime?
+  pts             Int      @default(0)
+  elo             Int      @default(1200)
+  peakRank        String?
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  mvps            Int      @default(0)
+  achievements    String?  @default("[]")
+  adminEvaluation String?  @default("")
+  teamId          String?
+  createdAt       DateTime @default(now())
 }
 
 model Match {
@@ -62,6 +71,7 @@ model Team {
   captainDiscordId String?
   status          String   @default("recruiting")
   rosterJson      String?
+  substitutesJson String?  @default("[]")
   teamType        String   @default("solo")
   color           String   @default("#6B7280")
   pts             Int      @default(0)

@@ -8,6 +8,7 @@ const validate = require('../middleware/validate');
 const prisma = require('../utils/prisma');
 const containsProfanity = require('../utils/profanity');
 const orAuth = require('../middleware/orAuth');
+const { logAction } = require('../utils/audit');
 
 // Old auto-draft routes (auth required)
 router.get('/', auth, getTeams);
@@ -20,7 +21,6 @@ router.get('/all', listAll);
 router.post('/create-from-registration', orAuth, async (req, res, next) => {
   try {
     const { name, discordId: bodyDiscordId, displayName, pts, type } = req.body;
-    // Use discord ID from auth token (trusted), fallback to body for admin
     const discordId = req.discordUser ? req.discordUser.discordId : (req.user ? bodyDiscordId : null);
     if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
     if (containsProfanity(name)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
@@ -32,13 +32,47 @@ router.post('/create-from-registration', orAuth, async (req, res, next) => {
         name,
         captainDiscordId: discordId,
         rosterJson: JSON.stringify([discordId]),
-        status: 'approved',
+        status: 'pending',
         teamType: type || 'duo',
         color: type === 'trio' ? '#F97316' : '#EAB308',
         pts: teamPts
       }
     });
     await prisma.player.updateMany({ where: { discordId }, data: { teamId: name } });
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('team:created', team);
+    res.status(201).json(team);
+  } catch (e) { next(e); }
+});
+
+// Admin: Create team manually
+router.post('/admin-create', auth, async (req, res, next) => {
+  try {
+    const { name, status, captainDiscordId, teamType } = req.body;
+    if (!name) return res.status(400).json({ error: 'Tên đội không được để trống' });
+    const existing = await prisma.team.findUnique({ where: { name } });
+    if (existing) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
+    
+    let roster = [];
+    if (captainDiscordId) {
+        roster.push(captainDiscordId);
+    }
+    
+    const team = await prisma.team.create({
+      data: {
+        name,
+        captainDiscordId: captainDiscordId || null,
+        rosterJson: JSON.stringify(roster),
+        status: status || 'recruiting',
+        teamType: teamType || '5v5',
+        pts: 0
+      }
+    });
+    
+    if (captainDiscordId) {
+        await prisma.player.updateMany({ where: { discordId: captainDiscordId }, data: { teamId: name } });
+    }
+    
     const io = require('../utils/socket').getIO();
     if (io) io.emit('team:created', team);
     res.status(201).json(team);
@@ -57,7 +91,6 @@ router.get('/admin/draft-preview', auth, async (req, res, next) => {
         if (player) allPlayers.push(player);
       }
     }
-    // Shuffle and group into 5-player teams
     const shuffled = allPlayers.sort(() => Math.random() - 0.5);
     const newTeams = [];
     for (let i = 0; i < shuffled.length; i += 5) {
@@ -65,12 +98,7 @@ router.get('/admin/draft-preview', auth, async (req, res, next) => {
       if (group.length < 5) continue;
       const teamName = `Đội ${String.fromCharCode(65 + newTeams.length)} (Auto)`;
       const totalPts = group.reduce((s, p) => s + (p.pts || 0), 0);
-      newTeams.push({
-        name: teamName,
-        captainDiscordId: group[0].discordId,
-        rosterPlayers: group,
-        pts: totalPts
-      });
+      newTeams.push({ name: teamName, captainDiscordId: group[0].discordId, rosterPlayers: group, pts: totalPts });
     }
     res.json({ draftablePlayers: allPlayers.length, teams: newTeams });
   } catch (e) { next(e); }
@@ -88,7 +116,6 @@ router.post('/admin/draft', auth, async (req, res, next) => {
         if (player) allPlayers.push(player);
       }
     }
-    // Shuffle and group into 5-player teams
     const shuffled = allPlayers.sort(() => Math.random() - 0.5);
     const newTeams = [];
     for (let i = 0; i < shuffled.length; i += 5) {
@@ -98,22 +125,13 @@ router.post('/admin/draft', auth, async (req, res, next) => {
       const rosterIds = group.map(p => p.discordId);
       const totalPts = group.reduce((s, p) => s + (p.pts || 0), 0);
       const team = await prisma.team.create({
-        data: {
-          name: teamName,
-          captainDiscordId: group[0].discordId,
-          rosterJson: JSON.stringify(rosterIds),
-          status: 'complete',
-          teamType: 'complete',
-          color: '#3B82F6',
-          pts: totalPts
-        }
+        data: { name: teamName, captainDiscordId: group[0].discordId, rosterJson: JSON.stringify(rosterIds), status: 'complete', teamType: 'complete', color: '#3B82F6', pts: totalPts }
       });
       for (const p of group) {
         await prisma.player.update({ where: { id: p.id }, data: { teamId: teamName } });
       }
       newTeams.push(team);
     }
-    // Delete old recruiting teams
     for (const team of teams) {
       await prisma.joinRequest.deleteMany({ where: { teamId: team.id } });
       await prisma.team.delete({ where: { id: team.id } });
@@ -121,6 +139,95 @@ router.post('/admin/draft', auth, async (req, res, next) => {
     const io = require('../utils/socket').getIO();
     if (io) io.emit('teams:reload');
     res.json({ drafted: newTeams.length, teams: newTeams.map(t => t.name) });
+  } catch (e) { next(e); }
+});
+
+// Toggle substitute role
+router.put('/:name/role', orAuth, async (req, res, next) => {
+  try {
+    const { name } = req.params;
+    const { targetDiscordId } = req.body;
+    const isAdmin = req.user && req.user.isAdmin;
+    const discordId = req.discordUser ? req.discordUser.discordId : null;
+
+    if (!targetDiscordId) return res.status(400).json({ error: 'Thiếu targetDiscordId' });
+
+    const team = await prisma.team.findUnique({ where: { name } });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
+
+    if (!isAdmin && team.captainDiscordId !== discordId) {
+      return res.status(403).json({ error: 'Chỉ đội trưởng mới có quyền đổi vai trò' });
+    }
+
+    let roster = [];
+    try { roster = JSON.parse(team.rosterJson || '[]'); } catch (e) {}
+    if (!roster.includes(targetDiscordId)) {
+      return res.status(400).json({ error: 'Người chơi không thuộc đội' });
+    }
+    
+    if (targetDiscordId === team.captainDiscordId) {
+      return res.status(400).json({ error: 'Không thể chuyển đội trưởng sang dự bị' });
+    }
+
+    let subs = [];
+    try { subs = JSON.parse(team.substitutesJson || '[]'); } catch (e) {}
+
+    let isSubstitute = false;
+    if (subs.includes(targetDiscordId)) {
+      subs = subs.filter(id => id !== targetDiscordId);
+      isSubstitute = false;
+    } else {
+      if (subs.length >= 2) return res.status(400).json({ error: 'Tối đa 2 người dự bị' });
+      subs.push(targetDiscordId);
+      isSubstitute = true;
+    }
+
+    await prisma.team.update({
+      where: { name },
+      data: { substitutesJson: JSON.stringify(subs) }
+    });
+    
+    logAction('TEAM_ROLE', `Đổi role cho ${targetDiscordId} thành ${isSubstitute ? 'Dự bị' : 'Đánh chính'} trong đội ${name}`);
+
+    res.json({ success: true, isSubstitute });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Change captain (admin only or current captain)
+router.put('/:name/captain', orAuth, async (req, res, next) => {
+  try {
+    const { name } = req.params;
+    const { newCaptainDiscordId } = req.body;
+    const isAdmin = !!req.user;
+    const discordId = req.discordUser?.discordId;
+    
+    if (!newCaptainDiscordId) return res.status(400).json({ error: 'Thiếu ID đội trưởng mới' });
+    
+    const team = await prisma.team.findUnique({ where: { name } });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
+    
+    if (!isAdmin && team.captainDiscordId !== discordId) {
+      return res.status(403).json({ error: 'Chỉ admin hoặc đội trưởng mới có quyền' });
+    }
+    
+    const roster = JSON.parse(team.rosterJson || '[]');
+    if (!roster.includes(newCaptainDiscordId)) {
+      return res.status(400).json({ error: 'Người chơi không thuộc đội' });
+    }
+    
+    let subs = [];
+    try { subs = JSON.parse(team.substitutesJson || '[]'); } catch(e) {}
+    subs = subs.filter(id => id !== newCaptainDiscordId);
+    
+    await prisma.team.update({
+      where: { name },
+      data: { captainDiscordId: newCaptainDiscordId, substitutesJson: JSON.stringify(subs) }
+    });
+    
+    logAction('TEAM_CAPTAIN', `Đổi đội trưởng đội ${name} thành ${newCaptainDiscordId}`);
+    res.json({ ok: true, message: 'Đã chuyển quyền đội trưởng' });
   } catch (e) { next(e); }
 });
 
@@ -137,13 +244,10 @@ router.put('/:name/rename', orAuth, async (req, res, next) => {
     if (containsProfanity(newName)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
     const nameExists = await prisma.team.findUnique({ where: { name: newName } });
     if (nameExists && nameExists.id !== team.id) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
-    // Use transaction to ensure all-or-nothing update across 4 tables
-    await prisma.$transaction([
-      prisma.team.update({ where: { id: team.id }, data: { name: newName } }),
-      prisma.player.updateMany({ where: { teamId: team.name }, data: { teamId: newName } }),
-      prisma.match.updateMany({ where: { team1Name: team.name }, data: { team1Name: newName } }),
-      prisma.match.updateMany({ where: { team2Name: team.name }, data: { team2Name: newName } })
-    ]);
+    await prisma.team.update({ where: { id: team.id }, data: { name: newName } });
+    await prisma.player.updateMany({ where: { teamId: team.name }, data: { teamId: newName } });
+    await prisma.match.updateMany({ where: { team1Name: team.name }, data: { team1Name: newName } });
+    await prisma.match.updateMany({ where: { team2Name: team.name }, data: { team2Name: newName } });
     res.json({ ok: true, name: newName });
   } catch (e) { next(e); }
 });
@@ -155,19 +259,6 @@ router.post('/', discordAuth,
 );
 router.put('/:id/approve', auth, approveTeam);
 router.put('/:id/reject', auth, rejectTeam);
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const prisma = require('../utils/prisma');
-    const team = await prisma.team.findUnique({ where: { id: req.params.id } });
-    if (!team) return res.status(404).json({ error: 'Team not found' });
-    await prisma.team.delete({ where: { id: req.params.id } });
-    const { createAudit } = require('../utils/audit');
-    await createAudit(`Giải tán đội: ${team.name}`);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Team detail with roster + matches
 router.get('/detail/:name', async (req, res, next) => {
@@ -191,7 +282,8 @@ router.get('/detail/:name', async (req, res, next) => {
 });
 
 // === Captain Team Management (Discord auth required) ===
-// Kick a player from team (captain only)
+
+// Kick a player from team (captain or admin)
 router.delete('/:name/players/:discordId', orAuth, async (req, res, next) => {
   try {
     const { name, discordId } = req.params;
@@ -199,30 +291,40 @@ router.delete('/:name/players/:discordId', orAuth, async (req, res, next) => {
     if (!team) return res.status(404).json({ error: 'Team not found' });
     const isAdmin = !!req.user;
     if (!isAdmin && team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới có quyền' });
-    if (discordId === team.captainDiscordId) return res.status(400).json({ error: 'Không thể kick chính mình — hãy dùng "Rời đội"' });
+    if (!isAdmin && discordId === team.captainDiscordId) return res.status(400).json({ error: 'Không thể kick chính mình — hãy dùng "Rời đội"' });
     await prisma.player.update({ where: { discordId }, data: { teamId: null } }).catch(() => {});
-    // update roster
     const roster = JSON.parse(team.rosterJson || '[]');
     const filtered = roster.filter(id => id !== discordId);
-    await prisma.team.update({ where: { id: team.id }, data: { rosterJson: JSON.stringify(filtered) } });
+    let subs = [];
+    try { subs = JSON.parse(team.substitutesJson || '[]'); } catch(e) {}
+    subs = subs.filter(id => id !== discordId);
+    await prisma.team.update({ where: { id: team.id }, data: { rosterJson: JSON.stringify(filtered), substitutesJson: JSON.stringify(subs) } });
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('team:updated', { id: team.id, name });
     res.json({ ok: true, message: 'Đã xóa thành viên khỏi đội' });
   } catch (e) { next(e); }
 });
 
-// Leave team (any member)
+// Leave team (any member — requires Discord login)
 router.post('/:name/leave', discordAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
-    const discordId = req.discordUser.discordId;
+    const discordId = req.discordUser ? req.discordUser.discordId : null;
+    if (!discordId) return res.status(401).json({ error: 'Vui lòng đăng nhập Discord để rời đội' });
     const team = await prisma.team.findFirst({ where: { name } });
-    if (!team) return res.status(404).json({ error: 'Team not found' });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
     const player = await prisma.player.findFirst({ where: { discordId, teamId: name } });
     if (!player) return res.status(400).json({ error: 'Bạn không trong đội này' });
     if (discordId === team.captainDiscordId) return res.status(400).json({ error: 'Đội trưởng không thể rời — hãy giải tán đội trước' });
     await prisma.player.update({ where: { id: player.id }, data: { teamId: null } });
     const roster = JSON.parse(team.rosterJson || '[]');
     const filtered = roster.filter(id => id !== discordId);
-    await prisma.team.update({ where: { id: team.id }, data: { rosterJson: JSON.stringify(filtered) } });
+    let subs = [];
+    try { subs = JSON.parse(team.substitutesJson || '[]'); } catch(e) {}
+    subs = subs.filter(id => id !== discordId);
+    await prisma.team.update({ where: { id: team.id }, data: { rosterJson: JSON.stringify(filtered), substitutesJson: JSON.stringify(subs) } });
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('team:updated', { id: team.id, name });
     res.json({ ok: true, message: 'Đã rời khỏi đội' });
   } catch (e) { next(e); }
 });
@@ -260,7 +362,7 @@ router.delete('/:name/disband', discordAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Join requests
+// Request to join a team
 router.post('/:name/join', discordAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
@@ -279,6 +381,8 @@ router.post('/:name/join', discordAuth, async (req, res, next) => {
     res.status(201).json(joinReq);
   } catch (e) { next(e); }
 });
+
+// Get join requests for a team (captain only)
 router.get('/:name/requests', discordAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
@@ -289,6 +393,8 @@ router.get('/:name/requests', discordAuth, async (req, res, next) => {
     res.json(requests);
   } catch (e) { next(e); }
 });
+
+// Approve join request (captain only)
 router.put('/:name/requests/:requestId/approve', discordAuth, async (req, res, next) => {
   try {
     const { name, requestId } = req.params;
@@ -309,6 +415,8 @@ router.put('/:name/requests/:requestId/approve', discordAuth, async (req, res, n
     res.json({ ok: true, message: 'Đã duyệt ' + joinReq.playerName + ' vào đội' });
   } catch (e) { next(e); }
 });
+
+// Reject join request (captain only)
 router.put('/:name/requests/:requestId/reject', discordAuth, async (req, res, next) => {
   try {
     const { name, requestId } = req.params;
@@ -332,11 +440,8 @@ router.post('/:name/admin-add-player', auth, async (req, res, next) => {
     if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
-    // Remove from current team
     await prisma.player.updateMany({ where: { discordId }, data: { teamId: null } });
-    // Add to new team
     await prisma.player.updateMany({ where: { discordId }, data: { teamId: name } });
-    // Update roster
     let roster = JSON.parse(team.rosterJson || '[]');
     if (!roster.includes(discordId)) roster.push(discordId);
     await prisma.team.update({ where: { id: team.id }, data: { rosterJson: JSON.stringify(roster) } });
@@ -346,7 +451,22 @@ router.post('/:name/admin-add-player', auth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Admin: delete team
+// Admin: update team status (approve/reject/pending)
+router.put('/:name/status', auth, async (req, res, next) => {
+  try {
+    const { name } = req.params;
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Thiếu status' });
+    const team = await prisma.team.findFirst({ where: { name } });
+    if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
+    await prisma.team.update({ where: { id: team.id }, data: { status } });
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('team:updated', { id: team.id, name, status });
+    res.json({ ok: true, name, status });
+  } catch (e) { next(e); }
+});
+
+// Admin: delete team by name
 router.delete('/:name', auth, async (req, res, next) => {
   try {
     const { name } = req.params;

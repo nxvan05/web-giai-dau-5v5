@@ -23,16 +23,18 @@ exports.updateTeams = async (req, res) => {
 
 exports.listAll = async (req, res, next) => {
   try {
-    let authed = false;
-    try {
-      const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-      const discord = req.cookies?.discord_token;
-      if (token) { jwt.verify(token, process.env.JWT_SECRET); authed = true; }
-      if (!authed && discord) { const d = jwt.verify(discord, process.env.JWT_SECRET); if (d.type === 'discord') authed = true; }
-    } catch (_) {}
-    const where = authed ? {} : { status: 'approved' };
+    let isAdmin = false;
+    const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.isAdmin || decoded.type === 'admin' || (process.env.ADMIN_DISCORD_IDS || '').includes(decoded.discordId)) isAdmin = true;
+      } catch (_) {}
+    }
+    
+    const where = isAdmin ? {} : { status: { not: 'rejected' } };
     const teams = await prisma.team.findMany({ where, orderBy: { createdAt: 'desc' } });
-    // Attach player data for each team's roster
+    // Attach player data for each team's roster + recalculate pts excluding substitutes
     const allIds = [];
     for (const t of teams) {
       const roster = JSON.parse(t.rosterJson || '[]');
@@ -41,10 +43,21 @@ exports.listAll = async (req, res, next) => {
     const players = await prisma.player.findMany({ where: { discordId: { in: allIds } } });
     const playerMap = {};
     for (const p of players) playerMap[p.discordId] = p;
-    const enriched = teams.map(t => {
+    const enriched = [];
+    for (const t of teams) {
       const roster = JSON.parse(t.rosterJson || '[]');
-      return { ...t, rosterPlayers: roster.map(id => playerMap[id] || null).filter(Boolean) };
-    });
+      const substitutes = JSON.parse(t.substitutesJson || '[]');
+      const teamObj = { ...t, rosterPlayers: roster.map(id => playerMap[id] || null).filter(Boolean) };
+      let activePts = 0;
+      for (const id of roster) {
+        if (!substitutes.includes(id)) {
+          const p = playerMap[id];
+          if (p) activePts += (p.pts || 0);
+        }
+      }
+      teamObj.pts = activePts;
+      enriched.push(teamObj);
+    }
     res.json(enriched);
   } catch (e) { next(e); }
 };
@@ -60,7 +73,7 @@ exports.createTeam = async (req, res, next) => {
     const existing = await prisma.team.findUnique({ where: { name } });
     if (existing) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
     const team = await prisma.team.create({
-      data: { name, captainDiscordId, rosterJson: JSON.stringify(rosterDiscordIds), status: 'pending' }
+      data: { name, captainDiscordId, rosterJson: JSON.stringify(rosterDiscordIds), substitutesJson: JSON.stringify([]), status: 'pending' }
     });
     const io = getIO();
     if (io) io.emit('team:created', { id: team.id, name: team.name });
@@ -87,7 +100,7 @@ exports.approveTeam = async (req, res, next) => {
 
     const io = getIO();
     if (io) io.emit('team:approved', { id: team.id, name: team.name });
-    try { const { createNotification } = require('../routes/notifications'); createNotification('team_approved', `Đội ${team.name} đã được duyệt`, { teamId: id, teamName: team.name }); } catch(e) {}
+    try { const { createNotification } = require('../routes/notifications'); createNotification('team_approved', 'Đội ' + team.name + ' đã được duyệt', { teamId: id, teamName: team.name }); } catch(e) {}
     res.json({ message: 'Đã duyệt đội ' + team.name });
   } catch (e) { next(e); }
 };
@@ -111,19 +124,15 @@ exports.saveKDA = async (req, res, next) => {
     } = req.body;
 
     const kdaData = { team1Kills, team1Deaths, team1Assists, team2Kills, team2Deaths, team2Assists };
-    await prisma.setting.upsert({
-      where: { key: 'kda_' + matchId },
-      update: { value: JSON.stringify(kdaData) },
-      create: { key: 'kda_' + matchId, value: JSON.stringify(kdaData) }
-    });
+    await prisma.setting.upsert({ where: { key: 'kda_' + matchId }, update: { value: JSON.stringify(kdaData) }, create: { key: 'kda_' + matchId, value: JSON.stringify(kdaData) } });
 
     if (Array.isArray(team1PlayerStats) && team1PlayerStats.length > 0) {
       for (const ps of team1PlayerStats) {
         if (!ps.discordId) continue;
         await prisma.matchPlayerStat.upsert({
-          where: { id: `kda_${matchId}_${ps.discordId}` },
+          where: { id: 'kda_' + matchId + '_' + ps.discordId },
           update: { kills: ps.kills || 0, deaths: ps.deaths || 0, assists: ps.assists || 0, teamNumber: 1, playerName: ps.playerName || ps.discordId },
-          create: { id: `kda_${matchId}_${ps.discordId}`, matchId, playerDiscordId: ps.discordId, playerName: ps.playerName || ps.discordId, kills: ps.kills || 0, deaths: ps.deaths || 0, assists: ps.assists || 0, teamNumber: 1 }
+          create: { id: 'kda_' + matchId + '_' + ps.discordId, matchId, playerDiscordId: ps.discordId, playerName: ps.playerName || ps.discordId, kills: ps.kills || 0, deaths: ps.deaths || 0, assists: ps.assists || 0, teamNumber: 1 }
         });
       }
     } else if (Array.isArray(team1Players) && team1Players.length > 0 && team1Kills !== undefined) {
@@ -133,9 +142,9 @@ exports.saveKDA = async (req, res, next) => {
       for (const discordId of team1Players) {
         if (!discordId) continue;
         await prisma.matchPlayerStat.upsert({
-          where: { id: `kda_${matchId}_${discordId}` },
+          where: { id: 'kda_' + matchId + '_' + discordId },
           update: { kills: perPlayerKills, deaths: perPlayerDeaths, assists: perPlayerAssists, teamNumber: 1 },
-          create: { id: `kda_${matchId}_${discordId}`, matchId, playerDiscordId: discordId, playerName: discordId, kills: perPlayerKills, deaths: perPlayerDeaths, assists: perPlayerAssists, teamNumber: 1 }
+          create: { id: 'kda_' + matchId + '_' + discordId, matchId, playerDiscordId: discordId, playerName: discordId, kills: perPlayerKills, deaths: perPlayerDeaths, assists: perPlayerAssists, teamNumber: 1 }
         });
       }
     }
@@ -144,9 +153,9 @@ exports.saveKDA = async (req, res, next) => {
       for (const ps of team2PlayerStats) {
         if (!ps.discordId) continue;
         await prisma.matchPlayerStat.upsert({
-          where: { id: `kda_${matchId}_${ps.discordId}` },
+          where: { id: 'kda_' + matchId + '_' + ps.discordId },
           update: { kills: ps.kills || 0, deaths: ps.deaths || 0, assists: ps.assists || 0, teamNumber: 2, playerName: ps.playerName || ps.discordId },
-          create: { id: `kda_${matchId}_${ps.discordId}`, matchId, playerDiscordId: ps.discordId, playerName: ps.playerName || ps.discordId, kills: ps.kills || 0, deaths: ps.deaths || 0, assists: ps.assists || 0, teamNumber: 2 }
+          create: { id: 'kda_' + matchId + '_' + ps.discordId, matchId, playerDiscordId: ps.discordId, playerName: ps.playerName || ps.discordId, kills: ps.kills || 0, deaths: ps.deaths || 0, assists: ps.assists || 0, teamNumber: 2 }
         });
       }
     } else if (Array.isArray(team2Players) && team2Players.length > 0 && team2Kills !== undefined) {
@@ -156,9 +165,9 @@ exports.saveKDA = async (req, res, next) => {
       for (const discordId of team2Players) {
         if (!discordId) continue;
         await prisma.matchPlayerStat.upsert({
-          where: { id: `kda_${matchId}_${discordId}` },
+          where: { id: 'kda_' + matchId + '_' + discordId },
           update: { kills: perPlayerKills, deaths: perPlayerDeaths, assists: perPlayerAssists, teamNumber: 2 },
-          create: { id: `kda_${matchId}_${discordId}`, matchId, playerDiscordId: discordId, playerName: discordId, kills: perPlayerKills, deaths: perPlayerDeaths, assists: perPlayerAssists, teamNumber: 2 }
+          create: { id: 'kda_' + matchId + '_' + discordId, matchId, playerDiscordId: discordId, playerName: discordId, kills: perPlayerKills, deaths: perPlayerDeaths, assists: perPlayerAssists, teamNumber: 2 }
         });
       }
     }

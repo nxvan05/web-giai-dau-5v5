@@ -1,14 +1,37 @@
 const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 
 let io = null;
+
+function getAdminDiscordIds() {
+  return (process.env.ADMIN_DISCORD_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
+}
+
+function parseJwtFromCookie(cookieHeader) {
+  if (!cookieHeader) return null;
+  const cookies = cookieHeader.split(';').map(c => c.trim());
+  const tokenCookie = cookies.find(c => c.startsWith('token='));
+  const discordCookie = cookies.find(c => c.startsWith('discord_token='));
+  const raw = discordCookie ? discordCookie.slice('discord_token='.length) : tokenCookie?.slice('token='.length);
+  if (!raw) return null;
+  try { return jwt.verify(raw, process.env.JWT_SECRET); } catch (_) { return null; }
+}
 
 function initSocket(httpServer, corsOrigin) {
   io = new Server(httpServer, {
     cors: { origin: corsOrigin, credentials: true },
     transports: ['websocket', 'polling']
   });
+
   io.on('connection', (socket) => {
-    console.log('Socket connected:', socket.id);
+    const decoded = parseJwtFromCookie(socket.handshake.headers.cookie);
+    const isAdmin = decoded && (
+      (decoded.discordId && getAdminDiscordIds().includes(decoded.discordId)) ||
+      (!decoded.type && decoded.username)
+    );
+    socket.data.isAdmin = !!isAdmin;
+
+    console.log('Socket connected:', socket.id, 'isAdmin:', !!isAdmin);
 
     socket.on('stream:join', (streamId) => {
       socket.join('stream-' + streamId);
@@ -24,7 +47,7 @@ function initSocket(httpServer, corsOrigin) {
 
     // Admin Broadcast System
     socket.on('broadcast', (data) => {
-      // In a real app we'd verify admin role here, but for simplicity we'll just forward
+      if (!socket.data.isAdmin) return;
       io.emit('broadcast:receive', data);
     });
 
@@ -39,6 +62,7 @@ function initSocket(httpServer, corsOrigin) {
 
     socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
   });
+
   return io;
 }
 

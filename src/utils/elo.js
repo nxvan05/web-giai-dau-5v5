@@ -27,10 +27,15 @@ function calculateEloDelta(winnerAvgElo, loserAvgElo) {
  * @param {string} winner - The winning team name
  */
 async function applyEloChanges(matchId, team1Name, team2Name, winner) {
+  if (!winner || (winner !== team1Name && winner !== team2Name)) return { applied: false, reason: 'no_winner' };
+
+  const alreadyApplied = await prisma.eloHistory.findFirst({ where: { matchId } });
+  if (alreadyApplied) return { applied: false, reason: 'already_applied' };
+
   const team1Players = await prisma.player.findMany({ where: { teamId: team1Name } });
   const team2Players = await prisma.player.findMany({ where: { teamId: team2Name } });
 
-  if (!winner || team1Players.length === 0 || team2Players.length === 0) return;
+  if (team1Players.length === 0 || team2Players.length === 0) return { applied: false, reason: 'missing_players' };
 
   const t1AvgElo = Math.round(team1Players.reduce((s, p) => s + p.elo, 0) / team1Players.length);
   const t2AvgElo = Math.round(team2Players.reduce((s, p) => s + p.elo, 0) / team2Players.length);
@@ -54,6 +59,8 @@ async function applyEloChanges(matchId, team1Name, team2Name, winner) {
     await prisma.player.update({ where: { id: p.id }, data: { elo: newElo, losses: { increment: 1 } } });
     await prisma.eloHistory.create({ data: { playerDiscordId: p.discordId, elo: newElo, delta: loserDelta, matchId, reason: 'loss' } });
   }
+
+  return { applied: true, winnerDelta, loserDelta };
 }
 
 module.exports = { calculateEloDelta, applyEloChanges, ELO_K_FACTOR };

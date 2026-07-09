@@ -9,7 +9,7 @@ module.exports = (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Vui lòng đăng nhập bằng Discord' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.type !== 'discord') return res.status(401).json({ error: 'Invalid token type' });
+    if (decoded.type !== 'discord' && !decoded.discordId) return res.status(401).json({ error: 'Phiên đăng nhập Discord đã hết hạn, vui lòng đăng nhập lại!' });
     req.discordUser = decoded;
     next();
   } catch (err) {

@@ -1,0 +1,1 @@
+module.exports = [{ languageOptions: { ecmaVersion: 'latest', sourceType: 'commonjs', globals: { console: 'readonly', module: 'readonly', require: 'readonly', process: 'readonly', __dirname: 'readonly', document: 'readonly', window: 'readonly', fetch: 'readonly', localStorage: 'readonly' } }, rules: { 'no-undef': 'error', 'no-unused-vars': 'warn' } }];

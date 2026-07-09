@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const auth = require('../middleware/auth');
+const orAuth = require('../middleware/orAuth');
 const prisma = require('../utils/prisma');
 
 const UPLOAD_DIR = path.join(__dirname, '../../public/uploads');
@@ -26,17 +26,28 @@ const upload = multer({
   },
 });
 
-router.post('/team-logo', auth, upload.single('logo'), async (req, res, next) => {
+router.post('/team-logo', orAuth, upload.single('logo'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const teamName = req.body.teamName;
     const url = '/uploads/' + req.file.filename;
     if (teamName) {
       const team = await prisma.team.findUnique({ where: { name: teamName } });
-      if (team) {
-        await prisma.team.update({ where: { name: teamName }, data: { logo: url } });
+      if (!team) {
+         return res.status(404).json({ error: 'Team not found' });
       }
+      // Check auth: Admin OR Captain
+      if (req.user) {
+         // Admin allowed
+      } else if (req.discordUser) {
+         if (team.captainDiscordId !== req.discordUser.discordId) {
+            return res.status(403).json({ error: 'Chỉ đội trưởng mới được đổi Logo' });
+         }
+      }
+      await prisma.team.update({ where: { name: teamName }, data: { logo: url } });
     }
+    const io = require('../utils/socket').getIO();
+    if (io) io.emit('teams:reload');
     res.json({ url, filename: req.file.filename });
   } catch (e) { next(e); }
 });

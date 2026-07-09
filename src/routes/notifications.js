@@ -22,7 +22,7 @@ async function sendEmbed(webhookURL, embed) {
 }
 router.post('/send-notification', auth,
   body('message').trim().notEmpty().withMessage('Message is required'), validate,
-  async (req, res) => {
+  async (req, res, next) => {
   try {
     const { playerId, playerName, message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
@@ -36,7 +36,7 @@ router.post('/send-notification', auth,
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-router.get('/notifications', auth, async (req, res) => {
+router.get('/notifications', auth, async (req, res, next) => {
   try {
     const logs = await prisma.auditLog.findMany({ where: { action: { startsWith: 'NOTIFY:' } }, orderBy: { createdAt: 'desc' }, take: 50 });
     res.json(logs);

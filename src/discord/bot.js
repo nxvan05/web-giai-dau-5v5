@@ -233,9 +233,14 @@ async function handleMyMatches(interaction) {
     return interaction.reply({ content: 'Bạn chưa có đội hoặc chưa đăng ký.', ephemeral: true });
   }
 
+  const team = await prisma.team.findFirst({ where: { id: player.teamId } });
+  if (!team) {
+    return interaction.reply({ content: 'Không tìm thấy thông tin đội của bạn.', ephemeral: true });
+  }
+
   const matches = await prisma.match.findMany({
     where: {
-      OR: [{ team1Name: player.teamId }, { team2Name: player.teamId }],
+      OR: [{ team1Name: team.name }, { team2Name: team.name }],
       scheduledAt: { gte: new Date() },
       status: { not: 'completed' },
     },

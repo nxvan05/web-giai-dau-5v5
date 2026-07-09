@@ -62,6 +62,11 @@ exports.callback = async (req, res) => {
 
     const player = await prisma.player.findFirst({ where: { discordId: discordUser.id } });
 
+    // Sync avatar to player record
+    if (player && discordUser.avatar && player.discordAvatar !== discordUser.avatar) {
+      await prisma.player.update({ where: { id: player.id }, data: { discordAvatar: discordUser.avatar } }).catch(() => {});
+    }
+
     const payload = {
       type: 'discord',
       discordId: discordUser.id,
@@ -96,6 +101,9 @@ exports.refresh = async (req, res) => {
   try {
     const discordUser = req.discordUser;
     const player = await prisma.player.findFirst({ where: { discordId: discordUser.discordId } });
+    if (player && discordUser.discordAvatar && player.discordAvatar !== discordUser.discordAvatar) {
+      await prisma.player.update({ where: { id: player.id }, data: { discordAvatar: discordUser.discordAvatar } }).catch(() => {});
+    }
     const payload = {
       type: 'discord',
       discordId: discordUser.discordId,

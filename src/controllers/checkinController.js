@@ -64,6 +64,10 @@ exports.toggleCheckin = async (req, res, next) => {
 exports.removeCheckin = async (req, res, next) => {
   try {
     const { matchId, discordId } = req.params;
+    const authedDiscordId = req.user?.discordId || req.discordUser?.discordId;
+    if (!req.user && authedDiscordId !== discordId) {
+      return res.status(403).json({ error: 'Chi duoc xoa check-in cua chinh minh' });
+    }
     await prisma.checkIn.deleteMany({ where: { matchId, discordId } });
     res.status(204).send();
   } catch (e) {
