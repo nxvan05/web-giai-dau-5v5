@@ -28,6 +28,25 @@ function normalizeReportScores(match, reportingTeamName, ownScore, opponentScore
   return { score1: opponentScore, score2: ownScore };
 }
 
+router.get('/stats', async (req, res, next) => {
+  try {
+    const players = await prisma.player.count();
+    const teams = await prisma.team.count();
+    const matches = await prisma.match.count();
+    res.json({ players, teams, matches });
+  } catch(e) { next(e); }
+});
+
+router.get('/score-reports', async (req, res, next) => {
+  try {
+    const reports = await prisma.scoreReport.findMany({
+      include: { reporter: { select: { displayName: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(reports);
+  } catch(e) { next(e); }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     const { skip, limit, page } = getPagination(req);

@@ -170,8 +170,7 @@ window.openAddPlayerModal = function() {
     const modal = document.getElementById('admin-player-modal');
     if (!modal) return;
     document.getElementById('admin-player-modal-title').textContent = 'Thêm Người Chơi';
-    document.getElementById('admin-player-modal-refresh-btn').classList.add('hidden');
-    document.getElementById('admin-player-modal-eval-btn').classList.add('hidden');
+    document.getElementById('admin-player-modal-refresh-btn')?.classList.add('hidden');
     document.getElementById('admin-player-modal-name').value = '';
     document.getElementById('admin-player-modal-discord').value = '';
     document.getElementById('admin-player-modal-riot').value = '';
@@ -222,8 +221,7 @@ window.openEditPlayerModal = function(id) {
     const modal = document.getElementById('admin-player-modal');
     if (!modal) return;
     document.getElementById('admin-player-modal-title').textContent = 'Sửa Người Chơi';
-    document.getElementById('admin-player-modal-refresh-btn').classList.remove('hidden');
-    document.getElementById('admin-player-modal-eval-btn').classList.remove('hidden');
+    document.getElementById('admin-player-modal-refresh-btn')?.classList.remove('hidden');
     document.getElementById('admin-player-modal-name').value = p.displayName || p.discord || '';
     document.getElementById('admin-player-modal-discord').value = p.discordId || '';
     document.getElementById('admin-player-modal-riot').value = p.riotId || '';
