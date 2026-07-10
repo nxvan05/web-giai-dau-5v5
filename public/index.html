@@ -831,15 +831,7 @@
                         <div id="admin-team-cards-empty" class="hidden text-center py-8 text-gray-500"><i class="fa-solid fa-people-group text-2xl mb-2 block"></i>Không có đội nào</div>
 
                         <!-- Player Transfer & Schedule -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
-                                <h4 class="text-xs font-bold text-valCyan mb-3 flex items-center gap-1.5 uppercase"><i class="fa-solid fa-arrows-rotate"></i> Chuyển Người</h4>
-                                <div class="flex flex-wrap gap-2">
-                                    <input type="text" id="sub-player-id" placeholder="Discord ID" class="flex-1 min-w-[120px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
-                                    <input type="text" id="sub-new-team" placeholder="Tên đội mới" class="flex-1 min-w-[120px] bg-valBg border border-gray-800 rounded-lg px-3 py-2 text-xs text-white outline-none">
-                                    <button onclick="substitutePlayer()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg text-xs font-bold hover:bg-valCyan/30 transition"><i class="fa-solid fa-arrows-rotate mr-1"></i>Chuyển</button>
-                                </div>
-                            </div>
+                        <div class="grid grid-cols-1 gap-4">
                             <div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
                                 <div class="flex items-center gap-2">
                                     <i class="fa-solid fa-calendar-days text-amber-400 text-xs"></i>
@@ -884,8 +876,28 @@
                             </div>
                             <!-- Roster -->
                             <div>
-                                <h4 class="text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center gap-1"><i class="fa-solid fa-users"></i> Thành Viên</h4>
-                                <div id="admin-team-modal-roster" class="space-y-1.5 text-xs"></div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1"><i class="fa-solid fa-users"></i> Thành Viên</h4>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" id="admin-team-modal-add-id" placeholder="Discord ID..." class="bg-valBg border border-gray-800 rounded px-2 py-1 text-[10px] text-white outline-none focus:border-valCyan w-[140px]" onkeydown="if(event.key==='Enter') adminTransferPlayerModal()">
+                                        <button onclick="adminTransferPlayerModal()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-valCyan/30 transition">Thêm/Chuyển</button>
+                                    </div>
+                                </div>
+                                <div class="overflow-x-auto border border-gray-800 rounded-lg">
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-valBg">
+                                            <tr class="text-[9px] text-gray-500 uppercase border-b border-gray-800">
+                                                <th class="py-1.5 px-2">Tuyển thủ</th>
+                                                <th class="py-1.5 px-2 text-center">Vai trò</th>
+                                                <th class="py-1.5 px-2 text-center">PTS</th>
+                                                <th class="py-1.5 px-2 text-center">Elo</th>
+                                                <th class="py-1.5 px-2 text-center hidden sm:table-cell">W/L</th>
+                                                <th class="py-1.5 px-2 text-right">Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="admin-team-modal-roster" class="divide-y divide-gray-800/50"></tbody>
+                                    </table>
+                                </div>
                             </div>
                             <!-- Match History -->
                             <div>
@@ -893,8 +905,7 @@
                                 <div id="admin-team-modal-matches" class="space-y-1 text-xs max-h-[200px] overflow-y-auto hidden"></div>
                             </div>
                             <!-- Admin Actions -->
-                            <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-800">
-                                <button onclick="adminAddMemberToTeam()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-valCyan/30 transition"><i class="fa-solid fa-user-plus mr-1"></i>Thêm Thành Viên</button>
+                            <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-800 justify-end">
                                 <button onclick="adminRenameCurrentTeam()" class="bg-gray-800 text-gray-300 border border-gray-700 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-gray-700 transition"><i class="fa-solid fa-pen mr-1"></i>Đổi Tên</button>
                                 <button onclick="adminDeleteCurrentTeam()" class="bg-valRed/20 text-valRed border border-valRed/30 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-valRed/30 transition"><i class="fa-solid fa-trash mr-1"></i>Xóa Đội</button>
                             </div>

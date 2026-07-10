@@ -34,7 +34,10 @@ window.checkDiscordAuth = async function() {
     const maxRetries = 2;
     while (retries <= maxRetries) {
         try {
-            await fetch('/api/discord/refresh', { method: 'POST', credentials: 'include' }).catch(() => {});
+            const refreshRes = await fetch('/api/discord/refresh', { method: 'POST', credentials: 'include' }).catch(() => null);
+            if (refreshRes && refreshRes.status === 401) {
+                break; // Not logged in, no need to retry
+            }
             const res = await fetch('/api/discord/me', { credentials: 'include' });
             if (res.ok) {
                 const data = await res.json();

@@ -40,7 +40,6 @@ router.get('/stats', async (req, res, next) => {
 router.get('/score-reports', async (req, res, next) => {
   try {
     const reports = await prisma.scoreReport.findMany({
-      include: { reporter: { select: { displayName: true } } },
       orderBy: { createdAt: 'desc' }
     });
     res.json(reports);

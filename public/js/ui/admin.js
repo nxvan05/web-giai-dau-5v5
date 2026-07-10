@@ -58,12 +58,27 @@ window.adminRenderPlayers = function() {
             <td class="py-2 px-2 text-left hidden xl:table-cell">${team ? '<span class="text-[10px] bg-valCyan/10 text-valCyan border border-valCyan/20 px-1.5 py-0.5 rounded-full">'+team+'</span>' : '<span class="text-gray-500 italic">Tự do</span>'}</td>
             <td class="py-2 px-2 text-left hidden xl:table-cell text-[10px] ${p.adminEvaluation ? 'text-gray-300' : 'text-gray-600'}">${p.adminEvaluation || '-'}</td>
             <td class="py-2 px-2 text-center"><div class="flex gap-1 justify-center">
+                <button onclick="adminSyncPlayer('${id}')" class="text-gray-500 hover:text-purple-400 px-1" title="Sync Riot"><i class="fa-solid fa-rotate"></i></button>
                 <button onclick="openEditPlayerModal('${id}')" class="text-gray-500 hover:text-valCyan px-1" title="Sửa"><i class="fa-solid fa-pen"></i></button>
                 <button onclick="removePlayer('${id}')" class="text-gray-500 hover:text-valRed px-1" title="Xóa"><i class="fa-solid fa-trash"></i></button>
             </div></td>
         </tr>`;
     }).join('');
     adminUpdateBulkActions();
+};
+
+window.adminSyncPlayer = async function(id) {
+    if (!id) return;
+    showLoading('Đang đồng bộ dữ liệu Riot...');
+    try {
+        const res = await api('/api/players/' + encodeURIComponent(id) + '/sync-riot', { method: 'POST' });
+        hideLoading();
+        showToast('Đã đồng bộ thành công!', 'success');
+        adminRefreshPlayers(); // Tải lại danh sách
+    } catch (e) {
+        hideLoading();
+        showToast('Lỗi: ' + e.message, 'error');
+    }
 };
 
 window.adminUpdateBulkActions = function() {
@@ -350,28 +365,21 @@ window.adminRenderTeamCards = function() {
             <div class="p-4 space-y-3">
                 <div class="flex items-start justify-between gap-2">
                     <div class="flex-1 min-w-0">
-                        <h4 class="text-sm font-bold text-white truncate">${t.name}</h4>
-                        <p class="text-[10px] text-gray-500 mt-0.5">${capName ? capName.displayName || capName.discord : 'Chưa có captain'}</p>
+                        <div class="flex items-center gap-2">
+                            ${t.logo ? `<img src="${t.logo}" class="w-6 h-6 rounded-md object-cover border border-gray-700">` : `<div class="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black border border-gray-700" style="background-color: ${t.color || '#6B7280'}">${(t.shortName || t.name.substring(0,2)).toUpperCase()}</div>`}
+                            <h4 class="text-sm font-bold text-white truncate group-hover:text-valCyan transition">${t.name}</h4>
+                        </div>
+                        <p class="text-[10px] text-gray-500 mt-1"><i class="fa-solid fa-crown text-yellow-400 mr-1"></i>${capName ? capName.displayName || capName.discord : 'Chưa có captain'}</p>
                     </div>
                     <span class="text-[9px] ${sc} px-2 py-0.5 rounded-full font-bold shrink-0">${sl}</span>
                 </div>
-                <div class="flex items-center gap-3 text-[10px]">
-                    <span class="text-yellow-400 font-black text-sm tracking-wider bg-yellow-400/10 px-2.5 py-0.5 rounded-lg border border-yellow-400/20" title="${ptsBreakdown}">${pts}p</span>
-                    <span><i class="fa-solid fa-user text-valCyan mr-1"></i>${mains.length}/5 · ${subs.length}/2</span>
-                    <span class="text-emerald-400">${wins}W</span>
-                    <span class="text-valRed">${losses}L</span>
-                    <span class="text-gray-500">${avgElo}elo</span>
-                </div>
-                <div class="flex flex-wrap gap-1">
-                    ${roster.slice(0,7).map(p => {
-                        const isSub = subsList.includes(p.discordId);
-                        const pPts = getPtsFromRank(p.peakRank||p.rank);
-                        return `<div class="relative group/av ${isSub ? 'opacity-60' : ''}" title="${(isSub?'[Dự Bị] ':'')}${p.displayName||p.discord||'?'} — ${pPts}đ · ${p.elo||0}elo · ${p.rank||''} (peak ${p.peakRank||p.rank||'?'})">
-                            <img src="${getAvatarUrl(p.discordId, p.discordAvatar, 32)}" class="w-6 h-6 rounded-full border border-gray-700" onerror="this.style.display='none'">
-                            <div class="absolute -bottom-1 -right-1 bg-yellow-400/90 text-[7px] text-black font-black px-0.5 rounded-full leading-none">${pPts}</div>
-                        </div>`;
-                    }).join('')}
-                    ${mains.length < 5 ? `<div class="w-6 h-6 rounded-full border border-dashed border-gray-700 flex items-center justify-center text-[9px] text-gray-600">+${5-mains.length}</div>` : ''}
+                <div class="flex items-center justify-between border-t border-gray-800/50 pt-3">
+                    <span class="text-yellow-400 font-black text-sm tracking-wider bg-yellow-400/10 px-2 py-0.5 rounded border border-yellow-400/20" title="${ptsBreakdown}">${pts} PTS</span>
+                    <div class="flex items-center gap-3 text-[10px]">
+                        <span title="Thành viên chính thức"><i class="fa-solid fa-users text-gray-400 mr-1"></i>${mains.length}/5</span>
+                        <span class="text-gray-400" title="Trung bình Elo"><i class="fa-solid fa-trophy mr-1"></i>${avgElo}</span>
+                        <span class="text-gray-400"><span class="text-emerald-400">${wins}W</span> / <span class="text-valRed">${losses}L</span></span>
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -381,28 +389,46 @@ window.adminRenderTeamCards = function() {
 function adminMemberRow(p, teamName, capDiscordId, subsList) {
   const isSub = subsList.includes(p.discordId);
   const isCap = p.discordId === capDiscordId;
-  return `<div class="flex items-center justify-between bg-valBg/60 border ${isSub ? 'border-gray-700/50 opacity-70' : 'border-gray-800'} p-2 rounded-lg hover:bg-valBg/80 transition" onclick="openProfile('${p.discordId}')">
-    <div class="flex items-center gap-2">
-      <img src="${getAvatarUrl(p.discordId, p.discordAvatar, 32)}" class="w-6 h-6 rounded-full border border-gray-700" onerror="this.style.display='none'">
-      <div class="min-w-0">
-        <div class="flex items-center gap-1">
-          <span class="text-white text-xs font-bold">${p.displayName || p.discord || '?'}</span>
-          ${isCap ? '<span class="text-[9px] text-yellow-400 font-bold">C</span>' : ''}
-          ${isSub ? '<span class="text-[8px] bg-gray-700/40 text-gray-500 px-1 rounded font-bold">Dự Bị</span>' : ''}
+  const avatar = getAvatarUrl(p.discordId, p.discordAvatar, 32);
+  const rankIcon = typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank||p.rank) : '';
+  const pts = getPtsFromRank(p.peakRank||p.rank);
+
+  return `<tr class="hover:bg-valBg/80 transition group ${isSub ? 'opacity-80 bg-gray-800/20' : ''}">
+    <td class="py-2 px-2 border-b border-gray-800/50">
+      <div class="flex items-center gap-2 cursor-pointer" onclick="openProfile('${p.discordId}')">
+        <img src="${avatar}" class="w-7 h-7 rounded-full border border-gray-700" onerror="this.style.display='none'">
+        <div class="min-w-0">
+          <div class="flex items-center gap-1">
+            <span class="text-white text-xs font-bold hover:text-valCyan transition truncate max-w-[100px] sm:max-w-full">${p.displayName || p.discord || '?'}</span>
+            ${isCap ? '<i class="fa-solid fa-crown text-[10px] text-yellow-400" title="Đội Trưởng"></i>' : ''}
+          </div>
+          <div class="text-[9px] text-gray-500 truncate">${p.riotId || p.discordId}</div>
         </div>
-        <div class="text-[9px] text-gray-500 truncate">${p.rank||''}${p.peakRank ? ' · Peak '+p.peakRank : ''} · ${p.role||'N/A'}${p.headshotPct != null ? ' · HS:' + p.headshotPct + '%' : ''}</div>
       </div>
-    </div>
-    <div class="flex gap-2 text-[10px] items-center">
-      ${(function(){var _u = (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank||p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-4 h-4 inline-block mr-1 align-middle">' : '';})()}<span class="text-yellow-400 font-black">${getPtsFromRank(p.peakRank||p.rank)}đ</span>
-      <span class="text-gray-400">${p.elo || 1200}</span>
-      <span class="text-emerald-400">${p.wins||0}</span>
-      <span class="text-valRed">${p.losses||0}</span>
-      ${!isCap ? `<button onclick="event.stopPropagation();adminChangeCaptain('${teamName}','${p.discordId}','${(p.displayName||p.discord||'?').replace(/'/g, "\\'")   }')" class="text-gray-500 hover:text-yellow-400" title="Đặt làm Đội Trưởng"><i class="fa-solid fa-crown"></i></button>` : ''}
-      ${!isCap ? `<button onclick="event.stopPropagation();adminToggleSubRole('${teamName}','${p.discordId}')" class="${isSub ? 'text-emerald-400 hover:text-emerald-300' : 'text-gray-500 hover:text-gray-300'}" title="${isSub ? 'Lên đánh chính' : 'Xuống dự bị'}"><i class="fa-solid fa-arrows-rotate"></i></button>` : ''}
-      ${!isCap ? `<button onclick="event.stopPropagation();adminKickMember('${teamName}','${p.discordId}')" class="text-gray-500 hover:text-valRed" title="Kick"><i class="fa-solid fa-user-minus"></i></button>` : ''}
-    </div>
-  </div>`;
+    </td>
+    <td class="py-2 px-2 text-center border-b border-gray-800/50">
+      <span class="text-[9px] px-1.5 py-0.5 rounded font-bold border ${isSub ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}">${isSub ? 'Dự Bị' : 'Đánh Chính'}</span>
+    </td>
+    <td class="py-2 px-2 text-center border-b border-gray-800/50">
+      <div class="inline-flex items-center gap-1 bg-yellow-400/10 border border-yellow-400/20 px-1.5 py-0.5 rounded-lg">
+        ${rankIcon ? `<img src="${rankIcon}" class="w-3 h-3">` : ''}
+        <span class="text-yellow-400 text-xs font-black">${pts}</span>
+      </div>
+    </td>
+    <td class="py-2 px-2 text-center border-b border-gray-800/50 text-[10px] text-gray-400 font-mono">
+      ${p.elo || 1200}
+    </td>
+    <td class="py-2 px-2 text-center border-b border-gray-800/50 text-[10px] hidden sm:table-cell">
+      <span class="text-emerald-400 font-bold">${p.wins||0}W</span><span class="text-gray-600 mx-0.5">-</span><span class="text-valRed font-bold">${p.losses||0}L</span>
+    </td>
+    <td class="py-2 px-2 text-right border-b border-gray-800/50">
+      <div class="flex justify-end gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+        ${!isCap ? `<button onclick="adminChangeCaptain('${teamName}','${p.discordId}','${(p.displayName||p.discord||'?').replace(/'/g, "\\'")}')" class="text-gray-500 hover:text-yellow-400 p-1" title="Đặt Đội Trưởng"><i class="fa-solid fa-crown"></i></button>` : ''}
+        ${!isCap ? `<button onclick="adminToggleSubRole('${teamName}','${p.discordId}')" class="${isSub ? 'text-emerald-400 hover:text-emerald-300' : 'text-gray-500 hover:text-gray-300'} p-1" title="${isSub ? 'Lên Đánh Chính' : 'Xuống Dự Bị'}"><i class="fa-solid fa-arrows-rotate"></i></button>` : ''}
+        ${!isCap ? `<button onclick="adminKickMember('${teamName}','${p.discordId}')" class="text-gray-500 hover:text-valRed p-1" title="Đuổi khỏi đội"><i class="fa-solid fa-user-minus"></i></button>` : ''}
+      </div>
+    </td>
+  </tr>`;
 }
 window.adminOpenTeamModal = async function(teamName) {
     window.adminTeamModalName = teamName;
@@ -453,28 +479,28 @@ window.adminOpenTeamModal = async function(teamName) {
         }
         actionsContainer.innerHTML = actionHtml;
 
-        // Roster
+        // Roster Table Body
         let adminRosterHtml = '';
 
         // Main section
-        adminRosterHtml += '<p class="text-[9px] text-gray-500 uppercase font-bold tracking-wider mb-1 mt-1"><i class="fa-solid fa-shield-halved mr-1"></i>Chính Thức (' + mains.length + '/5)</p>';
         for (const p of mains) {
             adminRosterHtml += adminMemberRow(p, teamName, capDiscordId, subsList);
         }
         for (let i = mains.length; i < 5; i++) {
-            adminRosterHtml += '<div class="flex items-center gap-2 bg-valBg/30 border border-dashed border-gray-800 p-2 rounded-lg text-[10px] text-gray-600"><i class="fa-solid fa-plus-circle text-gray-700"></i><span>Trống</span></div>';
+            adminRosterHtml += `<tr><td colspan="6" class="py-2 px-2 text-center border-b border-gray-800/50 text-[10px] text-gray-600 bg-gray-900/20"><i class="fa-solid fa-plus-circle text-gray-700 mr-1"></i>Trống Đánh Chính (${5-mains.length})</td></tr>`;
         }
 
         // Sub section
-        adminRosterHtml += '<p class="text-[9px] text-gray-500 uppercase font-bold tracking-wider mb-1 mt-3"><i class="fa-solid fa-chair mr-1"></i>Dự Bị (' + subRoster.length + '/2)</p>';
-        for (const p of subRoster) {
-            adminRosterHtml += adminMemberRow(p, teamName, capDiscordId, subsList);
-        }
-        for (let i = subRoster.length; i < 2; i++) {
-            adminRosterHtml += '<div class="flex items-center gap-2 bg-valBg/30 border border-dashed border-gray-700/50 p-2 rounded-lg text-[10px] text-gray-600"><i class="fa-solid fa-plus-circle text-gray-700"></i><span>Trống dự bị</span></div>';
+        if (subRoster.length > 0 || mains.length >= 5) {
+            for (const p of subRoster) {
+                adminRosterHtml += adminMemberRow(p, teamName, capDiscordId, subsList);
+            }
+            for (let i = subRoster.length; i < 2; i++) {
+                adminRosterHtml += `<tr><td colspan="6" class="py-2 px-2 text-center border-b border-gray-800/50 text-[10px] text-gray-600 bg-gray-900/20"><i class="fa-solid fa-plus-circle text-gray-700 mr-1"></i>Trống Dự Bị (${2-subRoster.length})</td></tr>`;
+            }
         }
 
-        document.getElementById('admin-team-modal-roster').innerHTML = adminRosterHtml || '<div class="text-gray-500 text-center py-4">Chưa có thành viên</div>';
+        document.getElementById('admin-team-modal-roster').innerHTML = adminRosterHtml || `<tr><td colspan="6" class="py-4 text-center text-gray-500">Chưa có thành viên</td></tr>`;
         // Match history
         const matchHtml = matches.map(m => {
             const isWin = m.result === 'win' || m.winner === teamName;
@@ -488,6 +514,42 @@ window.adminOpenTeamModal = async function(teamName) {
         document.getElementById('admin-team-modal-matches').innerHTML = matchHtml || '<div class="text-gray-500 text-center py-4">Chưa có trận nào</div>';
     } catch(e) {}
     modal.classList.remove('hidden');
+};
+
+window.adminTransferPlayerModal = async function() {
+    const input = document.getElementById('admin-team-modal-add-id');
+    const discordId = input?.value.trim();
+    if (!discordId) return window.showToast('Vui lòng nhập Discord ID', 'error');
+    if (!window.adminTeamModalName) return window.showToast('Không xác định được đội hiện tại', 'error');
+    
+    // Using the same endpoint as substitutePlayer but forcing it into current team
+    // Actually the server endpoint for transferring/adding is: PUT /api/teams/:teamName/players/:discordId or we can use the old substitute endpoint if it works differently.
+    // The previous substitutePlayer used `POST /api/players/substitute` maybe?
+    // Let's use the explicit add endpoint: POST /api/teams/:teamName/players
+    
+    showLoading('Đang xử lý...');
+    try {
+        const teamName = window.adminTeamModalName;
+        // In this architecture, adding a member handles transfers automatically if they're in another team.
+        const res = await window.api('/api/teams/' + encodeURIComponent(teamName) + '/players', {
+            method: 'POST',
+            body: { discordId }
+        });
+        if (res.error) {
+            hideLoading();
+            return window.showToast(res.error, 'error');
+        }
+        hideLoading();
+        window.showToast('Đã thêm thành công!', 'success');
+        input.value = ''; // clear input
+        // Refresh modal data
+        adminOpenTeamModal(teamName);
+        // Also refresh background team cards if needed
+        adminLoadTeams(true); 
+    } catch (e) {
+        hideLoading();
+        window.showToast('Lỗi: ' + e.message, 'error');
+    }
 };
 
 window.adminCloseTeamModal = function() {
