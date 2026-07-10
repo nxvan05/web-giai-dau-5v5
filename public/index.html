@@ -571,14 +571,26 @@
                         </div>
 
                         <div>
-                            <div class="flex items-center justify-between mb-3">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
                                 <div>
                                     <h3 class="font-display text-lg font-black text-white uppercase tracking-wider">
                                         <i class="fa-solid fa-people-group text-valCyan mr-2"></i>Danh Sách Đội
                                     </h3>
                                     <p class="text-xs text-gray-500 mt-1">Click vào đội để xem chi tiết hoặc gửi đơn</p>
                                 </div>
-                                <span id="teams-count" class="text-[11px] bg-valCard border border-gray-800 text-gray-400 px-3 py-1.5 rounded-lg font-mono shrink-0">0 đội</span>
+                                <div class="flex items-center gap-2 w-full sm:w-auto">
+                                    <div class="relative flex-1 sm:w-48">
+                                        <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+                                        <input type="text" id="team-search-input" oninput="filterTeams()" placeholder="Tìm tên đội..." class="w-full bg-valBg/60 border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-valCyan/50 transition">
+                                    </div>
+                                    <select id="team-status-filter" onchange="filterTeams()" class="bg-valBg/60 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-valCyan/50 transition cursor-pointer">
+                                        <option value="all">Tất cả</option>
+                                        <option value="approved">Đã duyệt</option>
+                                        <option value="pending">Chờ duyệt</option>
+                                        <option value="recruiting">Tuyển TV</option>
+                                    </select>
+                                    <span id="teams-count" class="text-[11px] bg-valCard border border-gray-800 text-gray-400 px-3 py-1.5 rounded-lg font-mono shrink-0 hidden sm:block">0 đội</span>
+                                </div>
                             </div>
                             <div id="teams-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div class="col-span-full text-center py-12 text-gray-500"><i class="fa-solid fa-spinner animate-spin mr-2"></i>Đang tải...</div>
