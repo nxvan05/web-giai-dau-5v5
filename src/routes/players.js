@@ -556,7 +556,79 @@ router.post('/admin/auto-refresh-all', orAuth, async (req, res, next) => {
       }
       
     })(); // Chạy ngầm
+  } catch (e) {
+    next(e);
+  }
+});
 
+// Sync cá nhân Real-time
+router.post('/:id/sync-riot', auth, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { fetchRankWithIcon, fetchHeadshotStats } = require('../utils/henrik');
+    const { getIO } = require('../utils/socket');
+    const { getPointsFromRank } = require('../utils/rankPoints');
+
+    const p = await prisma.player.findUnique({ where: { id } });
+    if (!p) return res.status(404).json({ error: 'Player not found' });
+    if (!p.riotId || p.riotId === 'Unknown#000') return res.status(400).json({ error: 'Riot ID không hợp lệ' });
+
+    const parts = p.riotId.split('#');
+    const name = parts[0];
+    const tag = parts.slice(1).join('#');
+
+    let updatedData = {};
+    
+    // Fetch Rank
+    const rankData = await fetchRankWithIcon(name, tag, 'ap');
+    if (rankData) {
+      updatedData.rank = rankData.rank;
+      updatedData.peakRank = rankData.peakRank || p.peakRank || rankData.rank;
+      if (rankData.iconUrl) updatedData.rankIconUrl = rankData.iconUrl;
+      if (rankData.peakIconUrl) updatedData.peakIconUrl = rankData.peakIconUrl;
+    }
+
+    // Fetch HS%
+    const hsData = await fetchHeadshotStats(name, tag, 'ap', 5, rankData?.puuid);
+    if (hsData) {
+      updatedData.headshotPct = hsData.headshotPct;
+      updatedData.shotsTotal = hsData.totalShots;
+      updatedData.matchStatsUpdatedAt = new Date();
+    }
+
+    if (Object.keys(updatedData).length === 0) {
+      return res.status(400).json({ error: 'Không thể lấy dữ liệu từ Riot' });
+    }
+
+    const merged = { ...p, ...updatedData };
+    
+    // Auto evaluate C.Score
+    let score = 0;
+    const rankPts = getPointsFromRank(merged.peakRank || merged.rank);
+    const rankScore = Math.min(80, 15 + ((rankPts - 1) / 9) * 65);
+    score += rankScore;
+    if (merged.headshotPct > 15) {
+      score += Math.min(15, merged.headshotPct - 15);
+    }
+    if (merged.elo > 1200) {
+      score += Math.min(5, Math.floor((merged.elo - 1200) / 40));
+    }
+    const finalScore = Math.round(score * 10) / 10;
+    let tier = 'C';
+    if (finalScore >= 85) tier = 'S';
+    else if (finalScore >= 70) tier = 'A';
+    else if (finalScore >= 50) tier = 'B';
+    updatedData.adminEvaluation = `${tier} ${finalScore}`;
+
+    const updatedPlayer = await prisma.player.update({
+      where: { id },
+      data: updatedData
+    });
+
+    const io = getIO();
+    if (io) io.emit('data:updated', { type: 'players' });
+
+    res.json({ success: true, message: 'Đồng bộ thành công!', player: updatedPlayer });
   } catch (e) {
     next(e);
   }
