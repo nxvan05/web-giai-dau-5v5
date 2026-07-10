@@ -22,7 +22,7 @@ window.openProfile = async function(query, openTracker = false) {
         const modalContent = modal.querySelector('div');
 
         // Populate Header
-        document.getElementById('profile-name').textContent = p.displayName;
+        document.getElementById('profile-name').innerHTML = `<a href="https://discordapp.com/users/${p.discordId}" target="_blank" class="hover:text-[#5865F2] transition-colors flex items-center gap-2" title="Mở hồ sơ Discord">${p.displayName} <i class="fa-brands fa-discord text-[#5865F2] text-lg"></i></a>`;
         document.getElementById('profile-riotid').innerHTML = p.riotId ? `${p.riotId} <i class="fa-solid fa-copy ml-1 cursor-pointer hover:text-white transition-colors text-gray-500" onclick="window.copyToClipboard('${p.riotId.replace(/'/g, "\\'")}', event)" title="Sao chép Riot ID"></i>` : 'N/A';
         document.getElementById('profile-team').textContent = p.teamId || 'Free Agent';
         document.getElementById('profile-role').innerHTML = getRoleIcon(p.role) + ' ' + (p.role || 'Flex');
@@ -62,10 +62,15 @@ window.openProfile = async function(query, openTracker = false) {
         const avatarEl = document.getElementById('player-profile-avatar');
         if (avatarEl) {
             var aurl = '';
-            if (p.discordAvatar) { aurl = 'https://cdn.discordapp.com/avatars/' + p.discordId + '/' + p.discordAvatar + '.png?size=128'; }
+            if (window.getAvatarUrl) aurl = window.getAvatarUrl(p.discordId, p.discordAvatar, 128);
+            else if (p.discordAvatar) { aurl = 'https://cdn.discordapp.com/avatars/' + p.discordId + '/' + p.discordAvatar + '.png?size=128'; }
             else if (p.discordId) { try { var idx = Number((BigInt(p.discordId) >> 22n) % 6n); aurl = 'https://cdn.discordapp.com/embed/avatars/' + idx + '.png'; } catch(_e) { aurl = 'https://cdn.discordapp.com/embed/avatars/0.png'; } }
+            
             avatarEl.src = aurl;
-            avatarEl.onerror = function() { if (typeof window.getFallbackAvatar === 'function') this.src = window.getFallbackAvatar(p.discordId, p.displayName || p.discordId, 80); };
+            avatarEl.onerror = () => { if (window.getFallbackAvatar) avatarEl.src = window.getFallbackAvatar(p.discordId, p.displayName, 128); };
+            avatarEl.onclick = () => window.open(`https://discordapp.com/users/${p.discordId}`, '_blank');
+            avatarEl.classList.add('cursor-pointer', 'hover:ring-2', 'hover:ring-[#5865F2]', 'transition-all', 'hover:scale-105');
+            avatarEl.title = 'Mở hồ sơ Discord';
         }
 
         // Populate Stats from tournament data (DB)
