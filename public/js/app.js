@@ -1407,6 +1407,49 @@
         }
         let lastProfileDiscordId = null;
 
+        window.animateValue = function(element, start, end, duration) {
+            if (!element) return;
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                // Easing function for smoother stop
+                const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+                const current = Math.floor(easeOutQuart * (end - start) + start);
+                element.innerHTML = element.innerHTML.replace(/[0-9]+/, current);
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                } else {
+                    element.innerHTML = element.innerHTML.replace(/[0-9]+/, end);
+                }
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        window.copyToClipboard = function(text, event) {
+            if (event) event.stopPropagation();
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    window.showToast('Đã sao chép: ' + text, 'success');
+                }).catch(() => {
+                    window.showToast('Không thể sao chép!', 'error');
+                });
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    window.showToast('Đã sao chép: ' + text, 'success');
+                } catch (err) {
+                    window.showToast('Không thể sao chép!', 'error');
+                }
+                document.body.removeChild(textArea);
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', function() {
             const params = new URLSearchParams(window.location.search);
             const checkinParam = params.get('checkin');

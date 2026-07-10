@@ -189,7 +189,10 @@ function profileMemberCard(p, team) {
       
       <div class="flex-1 mt-1 w-full">
         <p class="text-xs font-bold text-white truncate cursor-pointer hover:text-valCyan transition-colors" onclick="openProfile('${p.discordId}')" title="${p.displayName}">${p.displayName}</p>
-        <p class="text-[9px] text-gray-500 truncate mt-0.5">${p.riotId || 'Chưa cập nhật'}</p>
+        <div class="text-[9px] text-gray-500 flex items-center justify-center gap-1 mt-0.5">
+            <span class="truncate">${p.riotId || 'Chưa cập nhật'}</span>
+            ${p.riotId ? `<i class="fa-solid fa-copy cursor-pointer hover:text-white transition-colors" onclick="window.copyToClipboard('${p.riotId.replace(/'/g, "\\'")}', event)" title="Sao chép Riot ID"></i>` : ''}
+        </div>
         
         <div class="mt-2 flex flex-wrap justify-center gap-1">
             <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${roleBgColor} ${roleColor}">${p.role || 'Player'}</span>
@@ -694,9 +697,17 @@ window.openTeamProfile = async function(teamName) {
         
         document.getElementById('team-profile-modal').classList.remove('hidden');
         document.getElementById('team-modal-name').textContent = team.name;
-        document.getElementById('team-modal-pts').innerHTML = '<i class="fa-solid fa-star mr-1"></i>' + team.pts + ' PTS';
+        
+        const ptsEl = document.getElementById('team-modal-pts');
+        ptsEl.innerHTML = '<i class="fa-solid fa-star mr-1"></i>0 PTS';
+        if (window.animateValue) window.animateValue(ptsEl, 0, team.pts || 0, 800);
+        else ptsEl.innerHTML = '<i class="fa-solid fa-star mr-1"></i>' + (team.pts || 0) + ' PTS';
+
         const totalElo = roster.reduce((sum, p) => sum + (p.elo || 1200), 0);
-        document.getElementById('team-modal-elo').innerHTML = '<i class="fa-solid fa-trophy mr-1"></i>' + totalElo + ' ELO';
+        const eloEl = document.getElementById('team-modal-elo');
+        eloEl.innerHTML = '<i class="fa-solid fa-trophy mr-1"></i>0 ELO';
+        if (window.animateValue) window.animateValue(eloEl, 0, totalElo, 1000);
+        else eloEl.innerHTML = '<i class="fa-solid fa-trophy mr-1"></i>' + totalElo + ' ELO';
         
         // Populate stats strip
         document.getElementById('profile-wins').textContent = wins || 0;

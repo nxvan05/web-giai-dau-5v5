@@ -23,7 +23,7 @@ window.openProfile = async function(query, openTracker = false) {
 
         // Populate Header
         document.getElementById('profile-name').textContent = p.displayName;
-        document.getElementById('profile-riotid').textContent = p.riotId || 'N/A';
+        document.getElementById('profile-riotid').innerHTML = p.riotId ? `${p.riotId} <i class="fa-solid fa-copy ml-1 cursor-pointer hover:text-white transition-colors text-gray-500" onclick="window.copyToClipboard('${p.riotId.replace(/'/g, "\\'")}', event)" title="Sao chép Riot ID"></i>` : 'N/A';
         document.getElementById('profile-team').textContent = p.teamId || 'Free Agent';
         document.getElementById('profile-role').innerHTML = getRoleIcon(p.role) + ' ' + (p.role || 'Flex');
         document.getElementById('profile-rank').textContent = p.peakRank || p.rank || 'Unranked';
