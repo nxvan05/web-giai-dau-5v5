@@ -91,7 +91,7 @@ window.openProfile = async function(query, openTracker = false) {
         document.getElementById('profile-server-rank').textContent = data.seasonStats?.playerRank || '?';
         var hsEl = document.getElementById('profile-hs-pct');
         if (hsEl && p.headshotPct != null) {
-            hsEl.textContent = p.headshotPct + '%';
+            hsEl.textContent = p.headshotPct.toFixed(1) + '%';
             hsEl.className = 'text-base font-bold mt-1 ' + (p.headshotPct >= 30 ? 'text-emerald-400' : p.headshotPct >= 20 ? 'text-yellow-400' : 'text-red-400');
         } else if (hsEl) { hsEl.textContent = '--'; }
 
