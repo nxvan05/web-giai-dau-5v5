@@ -258,7 +258,7 @@
 
         // === Leaderboard Tab ===
         let leaderboardData = [];
-        let currentSort = { key: 'rank', asc: true };
+        let currentSort = { key: 'elo', asc: false };
 
         async function loadLeaderboard() {
             showLoading('Đang tải bảng xếp hạng...');
