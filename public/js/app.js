@@ -343,38 +343,28 @@
             tbody.innerHTML = data.map((p, index) => {
                 const rankNum = currentSort.key === 'rank' && currentSort.asc ? p.rank : (index + 1);
                 
-                let scoreText = '-';
-                if (p.adminEvaluation) {
-                    const match = p.adminEvaluation.match(/([SABCD])/);
-                    const tier = match ? match[1] : '';
-                    let color = 'text-gray-400';
-                    if (tier === 'S') color = 'text-yellow-400';
-                    else if (tier === 'A') color = 'text-red-400';
-                    else if (tier === 'B') color = 'text-purple-400';
-                    else if (tier === 'C') color = 'text-blue-400';
-                    
-                    const score = parseFloat(p.adminEvaluation.replace(/[^0-9.]/g, '')) || 0;
-                    scoreText = `<span class="${color} font-bold" title="${p.adminEvaluation}">${score} <span class="text-[9px] opacity-70 border border-current px-0.5 rounded">${tier}</span></span>`;
-                }
+                let hsColor = 'text-gray-400';
+                if (p.headshotPct >= 25) hsColor = 'text-emerald-400';
+                else if (p.headshotPct >= 15) hsColor = 'text-yellow-400';
+                else if (p.headshotPct > 0) hsColor = 'text-red-400';
 
-                return `<tr class="${rankNum === 1 ? 'top1-border' : ''} border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50 transition" onclick="openProfile('${p.discordId}')" data-player-discord="${p.discordId}" data-player-name="${p.displayName}">
+                return `<tr class="${rankNum === 1 ? 'top1-border bg-yellow-500/5' : ''} border-b border-gray-800/50 cursor-pointer hover:bg-valBg/50 transition" onclick="openProfile('${p.discordId}')" data-player-discord="${p.discordId}" data-player-name="${p.displayName}">
                         <td class="py-2.5 px-3 text-center font-bold ${rankNum <= 3 ? 'text-yellow-400 text-sm' : 'text-gray-400'}">${rankNum <= 3 ? ['🥇','🥈','🥉'][rankNum-1] : '#' + rankNum}</td>
-                        <td class="py-2.5 px-3 font-bold text-valCyan hover:text-white transition flex items-center gap-2 flex-wrap">
+                        <td class="py-2.5 px-3 font-bold text-valCyan hover:text-white transition flex items-center gap-2 flex-wrap min-w-[150px]">
                             <img src="${getAvatarUrl(p.discordId, p.discordAvatar, 24)}" class="w-5 h-5 rounded-full border border-gray-700 inline-block hover:ring-2 hover:ring-valCyan transition" data-discord-id="${p.discordId||''}" data-name="${(p.displayName||'?').replace(/"/g,'&quot;')}" onerror="this.src=window.getFallbackAvatar('${p.discordId||''}','${(p.displayName||'?').replace(/'/g,"\\'")}',24)">
-                            ${p.displayName} <i class="fa-solid fa-magnifying-glass-chart text-gray-500 hover:text-valCyan ml-2 transition-colors cursor-pointer" onclick="event.stopPropagation(); openProfile('${p.discordId}', true)" title="Xem Tracker KDA"></i>
-                              ${p.teamId ? `<span class="text-[9px] bg-valCyan/10 text-valCyan border border-valCyan/20 px-1.5 py-0.5 rounded-full whitespace-nowrap ml-1">${p.teamId}</span>` : ''}
+                            ${p.displayName} <i class="fa-solid fa-magnifying-glass-chart text-gray-500 hover:text-valCyan ml-1 transition-colors cursor-pointer" onclick="event.stopPropagation(); openProfile('${p.discordId}', true)" title="Xem Tracker"></i>
                         </td>
+                        <td class="py-2.5 px-3 text-center">${p.teamId ? `<span class="team-link text-[10px] bg-valCyan/10 text-valCyan border border-valCyan/20 px-2 py-0.5 rounded-full cursor-pointer hover:bg-valCyan hover:text-black transition" title="Click xem chi tiết đội" onclick="event.stopPropagation();openTeamProfile('${p.teamId.replace(/'/g, "\\'")}')">${p.teamId}</span>` : '<span class="text-[10px] text-gray-600">-</span>'}</td>
                         <td class="py-2.5 px-3 text-center text-gray-300 relative group cursor-help">
-                            ${(function(){var _u = p.peakIconUrl || p.rankIconUrl || (window.getRankIconUrl ? window.getRankIconUrl(p.peakRank || p.rankName) : ''); return _u ? '<img src="' + _u + '" class="w-4 h-4 inline-block mr-1 align-middle" title="' + (p.peakRank || p.rankName) + '" onerror="this.style.display=\'none\'">' : '';})()}${p.peakRank || p.rankName || '—'}
-                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-gray-900 text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none z-10 shadow-lg border border-gray-700">W/L: ${p.wins}/${p.losses}${p.peakRank && p.peakRank !== p.rankName ? ' | Peak: ' + p.peakRank : ''}</span>
+                            ${(function(){var _u = (window.getRankIconUrl ? window.getRankIconUrl(p.peakRank || p.rankName) : ''); return _u ? '<img src="' + _u + '" class="w-4 h-4 inline-block mr-1 align-middle" title="' + (p.peakRank || p.rankName) + '" onerror="this.style.display=\'none\'">' : '';})()}${p.peakRank || p.rankName || '—'}
+                            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-gray-900 text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition pointer-events-none z-10 shadow-lg border border-gray-700">Peak: ${p.peakRank || '—'}</span>
                         </td>
-                        <td class="py-2.5 px-3 text-center ${p.headshotPct > 25 ? 'text-red-400' : 'text-gray-400'}">${p.headshotPct || 0}%</td>
-                        <td class="py-2.5 px-3 text-center">${scoreText}</td>
-                        <td class="py-2.5 px-3 text-center text-yellow-400 font-bold">${p.pts || window.getPtsFromRank(p.peakRank || p.rankName)}đ</td>
+                        <td class="py-2.5 px-3 text-center text-yellow-400 font-bold">${p.elo || 1000}</td>
+                        <td class="py-2.5 px-3 text-center font-mono ${hsColor} font-bold">${p.headshotPct ? p.headshotPct.toFixed(1) + '%' : '-'}</td>
+                        <td class="py-2.5 px-3 text-center text-valCyan font-bold">${p.pts || window.getPtsFromRank(p.peakRank || p.rankName)}</td>
                         <td class="py-2.5 px-3 text-center text-emerald-400 font-bold">${p.wins}</td>
-                        <td class="py-2.5 px-3 text-center text-red-400">${p.losses}</td>
-                        <td class="py-2.5 px-3 text-center text-yellow-400">${p.mvps}</td>
-                        <td class="py-2.5 px-3 text-center">${p.teamId ? `<span class="team-link text-[10px] text-valCyan cursor-pointer hover:text-white" title="Click xem chi tiết đội" onclick="event.stopPropagation();openTeamProfile('${p.teamId.replace(/'/g, "\\'")}')">${p.teamId}</span>` : '<span class="text-[10px] text-gray-600">-</span>'}</td>
+                        <td class="py-2.5 px-3 text-center text-red-400 font-bold">${p.losses}</td>
+                        <td class="py-2.5 px-3 text-center text-yellow-400">${p.mvps || 0}</td>
                     </tr>`;
             }).join('');
             
@@ -1413,14 +1403,13 @@
             const step = (timestamp) => {
                 if (!startTimestamp) startTimestamp = timestamp;
                 const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                // Easing function for smoother stop
                 const easeOutQuart = 1 - Math.pow(1 - progress, 4);
                 const current = Math.floor(easeOutQuart * (end - start) + start);
-                element.innerHTML = element.innerHTML.replace(/[0-9]+/, current);
+                element.textContent = current;
                 if (progress < 1) {
                     window.requestAnimationFrame(step);
                 } else {
-                    element.innerHTML = element.innerHTML.replace(/[0-9]+/, end);
+                    element.textContent = end;
                 }
             };
             window.requestAnimationFrame(step);

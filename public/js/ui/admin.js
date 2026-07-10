@@ -394,7 +394,7 @@ function adminMemberRow(p, teamName, capDiscordId, subsList) {
       </div>
     </div>
     <div class="flex gap-2 text-[10px] items-center">
-      ${(function(){var _u = p.peakIconUrl || p.rankIconUrl || (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank||p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-4 h-4 inline-block mr-1 align-middle">' : '';})()}<span class="text-yellow-400 font-black">${getPtsFromRank(p.peakRank||p.rank)}đ</span>
+      ${(function(){var _u = (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank||p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-4 h-4 inline-block mr-1 align-middle">' : '';})()}<span class="text-yellow-400 font-black">${getPtsFromRank(p.peakRank||p.rank)}đ</span>
       <span class="text-gray-400">${p.elo || 1200}</span>
       <span class="text-emerald-400">${p.wins||0}</span>
       <span class="text-valRed">${p.losses||0}</span>

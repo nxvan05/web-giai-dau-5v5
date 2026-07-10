@@ -197,7 +197,7 @@ function profileMemberCard(p, team) {
         <div class="mt-2 flex flex-wrap justify-center gap-1">
             <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${roleBgColor} ${roleColor}">${p.role || 'Player'}</span>
             <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-gray-700 bg-gray-800 text-gray-300">
-                ${p.rank ? ((function(){var _u = p.peakIconUrl || p.rankIconUrl || (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-3 h-3">' : '';})()) : ''}
+                ${p.rank ? ((function(){var _u = (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-3 h-3">' : '';})()) : ''}
                 ${p.elo} ELO
             </span>
         </div>

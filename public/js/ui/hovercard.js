@@ -108,7 +108,7 @@
         };
 
         var iconEl = document.getElementById('hc-rank-icon');
-        var bestIcon = p.peakIconUrl || p.rankIconUrl || (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : '');
+        var bestIcon = (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : '');
         if (bestIcon) {
             iconEl.innerHTML = '<img src="' + bestIcon + '" class="w-4 h-4">';
         } else { iconEl.innerHTML = ''; }

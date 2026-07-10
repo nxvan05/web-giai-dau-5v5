@@ -30,7 +30,7 @@ window.openProfile = async function(query, openTracker = false) {
         document.getElementById('profile-level').textContent = 'Lv ' + (p.accountLevel || 0);
 
         const rankIconEl = document.getElementById('profile-rank-icon');
-        const bestIcon = p.peakIconUrl || p.rankIconUrl || (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : '');
+        const bestIcon = (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : '');
         if (rankIconEl && bestIcon) {
             rankIconEl.innerHTML = '<img src="' + bestIcon + '" class="w-full h-full object-contain">';
         } else if (rankIconEl) { rankIconEl.innerHTML = ''; }
