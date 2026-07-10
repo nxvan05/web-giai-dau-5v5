@@ -117,7 +117,7 @@ window.confirmKickMember = async function(teamName, targetDiscordId, targetName)
                 await window.api('/api/teams/' + encodeURIComponent(teamName) + '/players/' + targetDiscordId, { method: 'DELETE' });
                 window.showToast('Đã đá ' + targetName + ' khỏi đội!', 'success');
                 closeTeamDetail();
-                openTeamDetail(teamName);
+                openTeamProfile(teamName);
                 loadTeamsBrowser();
             } catch(e) { window.showToast('Lỗi: ' + e.message, 'error'); }
         }
@@ -271,7 +271,7 @@ window.loadTeamsBrowser = async function() {
                                 html += '</div>';
                             } else {
                                 const safeName = team.name.replace(/'/g, "\\'");
-                                html += '<h4 class="text-white font-bold text-lg cursor-pointer hover:text-valCyan transition" onclick="openTeamDetail(\'' + safeName + '\')">' + window.escHtml(team.name) + ' <i class="fa-solid fa-up-right-from-square text-[10px] text-gray-500 ml-1"></i></h4>';
+                                html += '<h4 class="text-white font-bold text-lg cursor-pointer hover:text-valCyan transition" onclick="openTeamProfile(\'' + safeName + '\')">' + window.escHtml(team.name) + ' <i class="fa-solid fa-up-right-from-square text-[10px] text-gray-500 ml-1"></i></h4>';
                             }
 
                             const statusLabels = {approved:'✅ Đã duyệt',ready:'⏳ Sẵn sàng · Chờ duyệt',pending:'⏳ Chờ duyệt',recruiting:'📢 Tuyển TV',complete:'✅ Hoàn chỉnh',rejected:'❌ Từ chối'};
@@ -591,7 +591,7 @@ window.loadCompleteTeams = async function() {
                         html += `<div class="bg-valBg/60 border border-blue-500/30 rounded-xl p-4">
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <h5 class="text-sm font-bold text-white truncate cursor-pointer hover:text-valCyan" onclick="openTeamDetail('${safeName}')" title="Xem chi tiết">${team.name}</h5>
+                                    <h5 class="text-sm font-bold text-white truncate cursor-pointer hover:text-valCyan" onclick="openTeamProfile('${safeName}')" title="Xem chi tiết">${team.name}</h5>
                                     <button onclick="adminRenameTeam('${safeName}')" class="text-gray-500 hover:text-valCyan text-[10px]" title="Đổi tên"><i class="fa-solid fa-pen"></i></button>
                                     <button onclick="if(confirm('Xoá đội ${team.name}?'))deleteTeam('${safeName}')" class="text-gray-500 hover:text-valRed text-[10px]" title="Xoá đội"><i class="fa-solid fa-trash"></i></button>
                                 </div>
@@ -668,7 +668,7 @@ window.disbandTeam = async function(id) {
 
 
 // --- TEAM PROFILE MODAL ---
-async function openTeamProfile(teamName) {
+window.openTeamProfile = async function(teamName) {
     try {
         const res = await api('/api/teams/detail/' + encodeURIComponent(teamName));
         if (res.error) return showNotification('error', res.error);
@@ -707,7 +707,7 @@ async function openTeamProfile(teamName) {
         
         window.currentViewingTeam = team.name;
 
-        const rosterContainer = document.getElementById('team-modal-roster');
+        const rosterContainer = document.getElementById('team-profile-roster');
         const subsList = JSON.parse(team.substitutesJson || '[]');
         const mains = roster.filter(p => !subsList.includes(p.discordId));
         const subRoster = roster.filter(p => subsList.includes(p.discordId));
@@ -862,7 +862,7 @@ window.renderTeamsList = function(teamsToRender) {
         const mains = roster.filter(id => !subs.includes(id));
         const subMembers = roster.filter(id => subs.includes(id));
 
-        html += '<div class="bg-valCard border ' + st.b + ' rounded-2xl p-4 hover:border-valCyan/50 transition cursor-pointer flex flex-col" onclick="openTeamDetail(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')">';
+        html += '<div class="bg-valCard border ' + st.b + ' rounded-2xl p-4 hover:border-valCyan/50 transition cursor-pointer flex flex-col" onclick="openTeamProfile(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')">';
         
         // Header
         html += '<div class="flex items-start justify-between mb-3">';
@@ -931,7 +931,7 @@ window.renderTeamsList = function(teamsToRender) {
         } else if (!window.discordUser) {
             html += '<span class="flex-1 text-center text-[10px] text-gray-500 border border-gray-700 px-3 py-2 rounded-lg font-bold uppercase">Đăng nhập để xin vào</span>';
         } else {
-            html += '<button onclick="openTeamDetail(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')" class="flex-1 text-[10px] bg-gray-800 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg font-bold hover:bg-gray-700 transition uppercase"><i class="fa-solid fa-circle-info mr-1"></i>Chi Tiết</button>';
+            html += '<button onclick="openTeamProfile(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')" class="flex-1 text-[10px] bg-gray-800 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg font-bold hover:bg-gray-700 transition uppercase"><i class="fa-solid fa-circle-info mr-1"></i>Chi Tiết</button>';
         }
         html += '</div>';
         
