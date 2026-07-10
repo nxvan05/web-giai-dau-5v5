@@ -671,7 +671,7 @@ window.disbandTeam = async function(id) {
 window.openTeamProfile = async function(teamName) {
     try {
         const res = await api('/api/teams/detail/' + encodeURIComponent(teamName));
-        if (res.error) return showNotification('error', res.error);
+        if (res.error) return window.showToast(res.error, 'error');
         const { team, roster, matchHistory, captainPlayer } = res;
         
         document.getElementById('team-profile-modal').classList.remove('hidden');
@@ -759,7 +759,7 @@ window.openTeamProfile = async function(teamName) {
         }
 
     } catch (e) {
-        showNotification('error', 'Lỗi khi tải thông tin đội');
+        window.showToast('Lỗi khi tải thông tin đội', 'error');
     }
 }
 
@@ -772,7 +772,7 @@ async function uploadTeamLogo(e) {
     if (!window.currentViewingTeam) return;
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) return showNotification('error', 'Ảnh quá lớn (tối đa 2MB)');
+    if (file.size > 2 * 1024 * 1024) return window.showToast('Ảnh quá lớn (tối đa 2MB)', 'error');
     
     const formData = new FormData();
     formData.append('logo', file);
@@ -788,11 +788,11 @@ async function uploadTeamLogo(e) {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         
-        showNotification('success', 'Đã cập nhật Logo đội!');
+        window.showToast('Đã cập nhật Logo đội!', 'success');
         openTeamProfile(window.currentViewingTeam);
         if (window.loadCompleteTeams) loadCompleteTeams();
     } catch (err) {
-        showNotification('error', err.message);
+        window.showToast(err.message, 'error');
     }
 }
 
@@ -801,12 +801,12 @@ window.changeCaptain = async function(teamName, newCaptainDiscordId) {
     if (!confirm('Bạn có chắc chắn muốn chuyển quyền đội trưởng cho người này?')) return;
     try {
         const res = await api(`/api/teams/${encodeURIComponent(teamName)}/captain`, { method: 'PUT', body: { newCaptainDiscordId } });
-        if (res && res.error) return showNotification('error', res.error);
-        showNotification('success', 'Đã chuyển quyền đội trưởng thành công!');
+        if (res && res.error) return window.showToast(res.error, 'error');
+        window.showToast('Đã chuyển quyền đội trưởng thành công!', 'success');
         openTeamProfile(teamName);
         if (window.loadCompleteTeams) loadCompleteTeams();
     } catch (err) {
-        showNotification('error', 'Lỗi khi chuyển quyền');
+        window.showToast('Lỗi khi chuyển quyền', 'error');
     }
 };
 
