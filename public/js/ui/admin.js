@@ -398,6 +398,7 @@ function adminMemberRow(p, teamName, capDiscordId, subsList) {
       <span class="text-gray-400">${p.elo || 1200}</span>
       <span class="text-emerald-400">${p.wins||0}</span>
       <span class="text-valRed">${p.losses||0}</span>
+      ${!isCap ? `<button onclick="event.stopPropagation();adminChangeCaptain('${teamName}','${p.discordId}','${(p.displayName||p.discord||'?').replace(/'/g, "\\'")   }')" class="text-gray-500 hover:text-yellow-400" title="Đặt làm Đội Trưởng"><i class="fa-solid fa-crown"></i></button>` : ''}
       ${!isCap ? `<button onclick="event.stopPropagation();adminToggleSubRole('${teamName}','${p.discordId}')" class="${isSub ? 'text-emerald-400 hover:text-emerald-300' : 'text-gray-500 hover:text-gray-300'}" title="${isSub ? 'Lên đánh chính' : 'Xuống dự bị'}"><i class="fa-solid fa-arrows-rotate"></i></button>` : ''}
       ${!isCap ? `<button onclick="event.stopPropagation();adminKickMember('${teamName}','${p.discordId}')" class="text-gray-500 hover:text-valRed" title="Kick"><i class="fa-solid fa-user-minus"></i></button>` : ''}
     </div>
@@ -502,6 +503,18 @@ window.adminToggleSubRole = async function(teamName, discordId) {
     window.showToast('Lỗi: ' + e.message, 'error');
   }
 };
+
+window.adminChangeCaptain = async function(teamName, newCaptainDiscordId, playerName) {
+  if (!confirm('Đặt "' + playerName + '" làm Đội Trưởng mới của đội "' + teamName + '"?')) return;
+  try {
+    await window.api('/api/teams/' + encodeURIComponent(teamName) + '/captain', { method: 'PUT', body: { newCaptainDiscordId } });
+    window.showToast('Đã chuyển quyền Đội Trưởng cho ' + playerName, 'success');
+    adminOpenTeamModal(teamName);
+    adminLoadTeams();
+  } catch(e) {
+    window.showToast('Lỗi: ' + e.message, 'error');
+  }
+};
 window.adminCreateTeam = function() {
     document.getElementById('admin-ct-name').value = '';
     const capSelect = document.getElementById('admin-ct-captain');
@@ -587,7 +600,7 @@ window.adminRenameCurrentTeam = function() {
     const oldName = window.adminTeamModalName;
     const newName = prompt('Nhập tên mới cho đội ' + oldName + ':', oldName);
     if (!newName || newName === oldName) return;
-    window.api('/api/teams/' + encodeURIComponent(oldName) + '/rename', { method: 'PUT', body: { name: newName } })
+    window.api('/api/teams/' + encodeURIComponent(oldName) + '/rename', { method: 'PUT', body: { newName } })
         .then(() => { window.showToast('Đã đổi tên!', 'success'); adminLoadTeams(); adminCloseTeamModal(); })
         .catch(e => window.showToast('Lỗi: ' + e.message, 'error'));
 };
