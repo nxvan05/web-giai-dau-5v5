@@ -77,16 +77,16 @@
 
         var hsEl = document.getElementById('hc-hs');
         if (p.headshotPct != null && p.headshotPct !== undefined) {
-            hsEl.textContent = p.headshotPct + '%';
-            hsEl.className = 'text-sm font-bold ' + (p.headshotPct >= 30 ? 'text-emerald-400' : p.headshotPct >= 20 ? 'text-yellow-400' : 'text-red-400');
+            hsEl.textContent = p.headshotPct.toFixed(1) + '%';
+            hsEl.className = 'text-sm font-bold ' + (p.headshotPct >= 25 ? 'text-emerald-400' : p.headshotPct >= 15 ? 'text-yellow-400' : 'text-red-400');
         } else {
-            hsEl.textContent = '—';
+            hsEl.textContent = '-';
             hsEl.className = 'text-sm font-bold text-gray-500';
         }
 
-        var total = p.wins + p.losses;
-        var wr = total > 0 ? Math.round((p.wins / total) * 100) : 0;
-        document.getElementById('hc-wr').textContent = total > 0 ? wr + '% (' + p.wins + 'T-' + p.losses + 'B)' : '—';
+        var total = (p.wins || 0) + (p.losses || 0);
+        var wr = total > 0 ? Math.round(((p.wins || 0) / total) * 100) : 0;
+        document.getElementById('hc-wr').innerHTML = total > 0 ? `<span class="text-emerald-400">${p.wins||0}W</span> <span class="text-gray-500">/</span> <span class="text-red-400">${p.losses||0}L</span>` : '-';
 
         var k = (data.kda && data.kda.kills) || 0, d = (data.kda && data.kda.deaths) || 0, a = (data.kda && data.kda.assists) || 0;
         document.getElementById('hc-kda').textContent = k + '/' + d + '/' + a;
