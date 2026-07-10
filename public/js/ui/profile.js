@@ -22,7 +22,7 @@ window.openProfile = async function(query, openTracker = false) {
         const modalContent = modal.querySelector('div');
 
         // Populate Header
-        document.getElementById('profile-name').innerHTML = `<a href="https://discordapp.com/users/${p.discordId}" target="_blank" class="hover:text-[#5865F2] transition-colors flex items-center gap-2" title="Mở hồ sơ Discord">${p.displayName} <i class="fa-brands fa-discord text-[#5865F2] text-lg"></i></a>`;
+        document.getElementById('player-profile-name').innerHTML = `<a href="https://discordapp.com/users/${p.discordId}" target="_blank" class="hover:text-[#5865F2] transition-colors flex items-center gap-2" title="Mở hồ sơ Discord">${p.displayName} <i class="fa-brands fa-discord text-[#5865F2] text-lg"></i></a>`;
         document.getElementById('profile-riotid').innerHTML = p.riotId ? `${p.riotId} <i class="fa-solid fa-copy ml-1 cursor-pointer hover:text-white transition-colors text-gray-500" onclick="window.copyToClipboard('${p.riotId.replace(/'/g, "\\'")}', event)" title="Sao chép Riot ID"></i>` : 'N/A';
         document.getElementById('profile-team').textContent = p.teamId || 'Free Agent';
         document.getElementById('profile-role').innerHTML = getRoleIcon(p.role) + ' ' + (p.role || 'Flex');
