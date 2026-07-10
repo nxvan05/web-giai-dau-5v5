@@ -1691,12 +1691,32 @@
                     </div>
                 </div>
 
+                <!-- Stats Strip -->
+                <div class="grid grid-cols-4 gap-2 mb-8 bg-valBg/50 p-3 rounded-xl border border-gray-800">
+                    <div class="text-center">
+                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Thắng</p>
+                        <p id="profile-wins" class="text-xl font-mono font-black text-emerald-400">0</p>
+                    </div>
+                    <div class="text-center border-l border-gray-700/50">
+                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Thua</p>
+                        <p id="profile-losses" class="text-xl font-mono font-black text-valRed">0</p>
+                    </div>
+                    <div class="text-center border-l border-gray-700/50">
+                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Tỉ lệ thắng</p>
+                        <p id="profile-winrate" class="text-xl font-mono font-black text-white">-</p>
+                    </div>
+                    <div class="text-center border-l border-gray-700/50">
+                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Trạng thái</p>
+                        <p id="profile-status" class="text-[10px] font-bold mt-1.5 text-gray-300">-</p>
+                    </div>
+                </div>
+
                 <!-- Members -->
                 <div class="mb-6">
                     <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                         <i class="fa-solid fa-users text-emerald-400"></i> Danh sách thành viên
                     </h3>
-                    <div id="team-modal-roster" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div id="team-profile-roster" class="grid grid-cols-2 sm:grid-cols-5 gap-3">
                         <!-- Roster players will be injected here -->
                     </div>
                 </div>

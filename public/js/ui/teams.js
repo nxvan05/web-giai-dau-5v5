@@ -177,17 +177,35 @@ function profileMemberCard(p, team) {
   const isSub = JSON.parse(team.substitutesJson || '[]').includes(p.discordId);
   const isCap = p.discordId === team.captainDiscordId;
   const roleColor = p.role === 'Duelist' ? 'text-red-400' : p.role === 'Sentinel' ? 'text-emerald-400' : p.role === 'Controller' ? 'text-blue-400' : p.role === 'Initiator' ? 'text-purple-400' : 'text-gray-400';
+  const roleBgColor = p.role === 'Duelist' ? 'bg-red-400/10 border-red-400/30' : p.role === 'Sentinel' ? 'bg-emerald-400/10 border-emerald-400/30' : p.role === 'Controller' ? 'bg-blue-400/10 border-blue-400/30' : p.role === 'Initiator' ? 'bg-purple-400/10 border-purple-400/30' : 'bg-gray-400/10 border-gray-400/30';
+  
   return `
-    <div class="bg-valBg/60 border ${isSub ? 'border-gray-700/50 opacity-70' : 'border-gray-800'} p-3 rounded-xl flex items-center gap-3 hover:border-valCyan/50 transition group relative">
-      <img src="${getAvatarUrl(p.discordId, p.discordAvatar, 64)}" class="w-10 h-10 rounded-lg cursor-pointer" onclick="openProfile('${p.discordId}')" data-discord-id="${p.discordId||''}" data-name="${(p.displayName||'?').replace(/"/g,'&quot;')}" onerror="this.src=window.getFallbackAvatar('${p.discordId||''}','${(p.displayName||'?').replace(/'/g,"\\'")}',64)">
-      <div class="flex-1 cursor-pointer" onclick="openProfile('${p.discordId}')">
-        <p class="text-sm font-bold text-white flex items-center gap-1">${p.displayName} <i class="fa-solid fa-magnifying-glass-chart text-gray-500 hover:text-valCyan ml-1 transition-colors cursor-pointer" onclick="event.stopPropagation(); openProfile('${p.discordId}', true)" title="Xem Tracker KDA"></i> ${isCap ? '<i class="fa-solid fa-crown text-yellow-400 text-[10px]" title="Đội trưởng"></i>' : ''}${isSub ? '<span class="text-[9px] bg-gray-600/40 text-gray-400 px-1.5 py-0.5 rounded font-bold text-[9px]"><i class="fa-solid fa-chair mr-0.5"></i>Dự Bị</span>' : ''}</p>
-        <p class="text-[10px] text-gray-400">${p.riotId || 'Chưa cập nhật'}</p>
-        <p class="text-xs ${roleColor}">${p.role} - ${p.elo} ELO ${p.rank ? '· ' + ((function(){var _u = p.peakIconUrl || p.rankIconUrl || (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-3 h-3 inline-block align-middle mr-0.5">' : '';})()) + (p.peakRank || p.rank) : ''}${p.headshotPct != null ? ' · HS: ' + p.headshotPct + '%' : ''}</p>
+    <div class="bg-valBg/80 border ${isSub ? 'border-gray-700/50 opacity-70' : 'border-gray-800'} p-3 rounded-xl flex flex-col items-center text-center gap-2 hover:border-valCyan/50 hover:bg-valBg transition group relative overflow-hidden">
+      ${isCap ? '<div class="absolute top-0 left-0 right-0 h-1 bg-yellow-400"></div>' : ''}
+      <div class="relative mt-2">
+          <img src="${window.getAvatarUrl ? window.getAvatarUrl(p.discordId, p.discordAvatar, 64) : ''}" class="w-14 h-14 rounded-full border-2 ${isCap ? 'border-yellow-400' : 'border-gray-700'} cursor-pointer hover:scale-105 transition-transform" onclick="openProfile('${p.discordId}')" data-discord-id="${p.discordId||''}" data-name="${(p.displayName||'?').replace(/"/g,'&quot;')}" onerror="this.src=window.getFallbackAvatar('${p.discordId||''}','${(p.displayName||'?').replace(/'/g,"\\'")}',64)">
+          ${isCap ? '<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-valCard border border-yellow-400 text-yellow-400 rounded-full w-5 h-5 flex items-center justify-center text-[10px]" title="Đội trưởng"><i class="fa-solid fa-crown"></i></div>' : ''}
       </div>
+      
+      <div class="flex-1 mt-1 w-full">
+        <p class="text-xs font-bold text-white truncate cursor-pointer hover:text-valCyan transition-colors" onclick="openProfile('${p.discordId}')" title="${p.displayName}">${p.displayName}</p>
+        <p class="text-[9px] text-gray-500 truncate mt-0.5">${p.riotId || 'Chưa cập nhật'}</p>
+        
+        <div class="mt-2 flex flex-wrap justify-center gap-1">
+            <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${roleBgColor} ${roleColor}">${p.role || 'Player'}</span>
+            <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-gray-700 bg-gray-800 text-gray-300">
+                ${p.rank ? ((function(){var _u = p.peakIconUrl || p.rankIconUrl || (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-3 h-3">' : '';})()) : ''}
+                ${p.elo} ELO
+            </span>
+        </div>
+      </div>
+
+      ${isSub ? '<div class="absolute top-2 right-2 text-[10px] text-gray-500" title="Dự bị"><i class="fa-solid fa-chair"></i></div>' : ''}
+      <div class="absolute top-2 left-2 text-[10px] text-gray-500 hover:text-valCyan cursor-pointer transition-colors" onclick="event.stopPropagation(); openProfile('${p.discordId}', true)" title="Xem Tracker KDA"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+
       ${(!isCap && window.isAdmin) ? `
-        <button class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded bg-gray-800 text-gray-400 hover:text-yellow-400 hover:bg-gray-700 transition" onclick="changeCaptain('${team.name}', '${p.discordId}')" title="Chuyển quyền Đội Trưởng">
-          <i class="fa-solid fa-crown"></i>
+        <button class="absolute bottom-2 right-2 w-6 h-6 flex items-center justify-center rounded bg-gray-800/80 text-gray-400 hover:text-yellow-400 hover:bg-gray-700 transition opacity-0 group-hover:opacity-100" onclick="changeCaptain('${team.name}', '${p.discordId}')" title="Chuyển quyền Đội Trưởng">
+          <i class="fa-solid fa-crown text-[10px]"></i>
         </button>
       ` : ''}
     </div>
@@ -672,13 +690,22 @@ window.openTeamProfile = async function(teamName) {
     try {
         const res = await api('/api/teams/detail/' + encodeURIComponent(teamName));
         if (res.error) return window.showToast(res.error, 'error');
-        const { team, roster, matchHistory, captainPlayer } = res;
+        const { team, roster, matchHistory, captainPlayer, wins, losses } = res;
         
         document.getElementById('team-profile-modal').classList.remove('hidden');
         document.getElementById('team-modal-name').textContent = team.name;
         document.getElementById('team-modal-pts').innerHTML = '<i class="fa-solid fa-star mr-1"></i>' + team.pts + ' PTS';
         const totalElo = roster.reduce((sum, p) => sum + (p.elo || 1200), 0);
         document.getElementById('team-modal-elo').innerHTML = '<i class="fa-solid fa-trophy mr-1"></i>' + totalElo + ' ELO';
+        
+        // Populate stats strip
+        document.getElementById('profile-wins').textContent = wins || 0;
+        document.getElementById('profile-losses').textContent = losses || 0;
+        const totalMatches = (wins || 0) + (losses || 0);
+        document.getElementById('profile-winrate').textContent = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) + '%' : '-';
+        
+        const statusLabels = {approved:'✅ Đã duyệt',ready:'⏳ Sẵn sàng',pending:'⏳ Chờ duyệt',recruiting:'📢 Tuyển TV',complete:'✅ Hoàn chỉnh',rejected:'❌ Từ chối'};
+        document.getElementById('profile-status').textContent = statusLabels[team.status] || team.status;
         
         const banner = document.getElementById('team-modal-banner');
         banner.style.backgroundColor = team.color || '#6B7280';
@@ -738,11 +765,21 @@ window.openTeamProfile = async function(teamName) {
         if (matchHistory.length === 0) {
             historyContainer.innerHTML = '<p class="text-center text-gray-500 text-sm italic py-4">Chưa thi đấu trận nào</p>';
         } else {
-            historyContainer.innerHTML = matchHistory.map(m => {
+            // Recent Form Indicator
+            const recentForm = matchHistory.slice(0, 5).reverse();
+            let formHtml = '<div class="flex items-center gap-2 mb-4"><span class="text-[10px] text-gray-400 uppercase font-bold">Phong độ (5 trận gần nhất):</span><div class="flex items-center gap-1">';
+            recentForm.forEach(m => {
+                const bg = m.result === 'win' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : m.result === 'loss' ? 'bg-valRed/20 text-valRed border-valRed/50' : 'bg-gray-800 text-gray-400 border-gray-700';
+                const label = m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : '-';
+                formHtml += `<div class="w-6 h-6 flex items-center justify-center rounded border ${bg} text-[10px] font-bold font-mono" title="${m.isTeam1 ? m.team2Name : m.team1Name}">${label}</div>`;
+            });
+            formHtml += '</div></div>';
+
+            const matchesHtml = '<div class="space-y-2">' + matchHistory.map(m => {
                 const isWin = m.result === 'win';
                 const isLoss = m.result === 'loss';
-                const resultColor = isWin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : isLoss ? 'bg-valRed/20 text-valRed border-valRed/30' : 'bg-gray-800 text-gray-400 border-gray-700';
-                const resultText = isWin ? 'THẮNG' : isLoss ? 'THUA' : 'CHỜ';
+                const badgeStyle = isWin ? 'bg-emerald-500 text-white' : isLoss ? 'bg-valRed text-white' : 'bg-gray-700 text-gray-300';
+                const resultText = isWin ? 'VICTORY' : isLoss ? 'DEFEAT' : 'PENDING';
                 const oppName = m.isTeam1 ? m.team2Name : m.team1Name;
                 const myScore = m.isTeam1 ? m.score1 : m.score2;
                 const oppScore = m.isTeam1 ? m.score2 : m.score1;
