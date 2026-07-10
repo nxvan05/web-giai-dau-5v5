@@ -699,15 +699,15 @@ window.openTeamProfile = async function(teamName) {
         document.getElementById('team-modal-name').textContent = team.name;
         
         const ptsEl = document.getElementById('team-modal-pts');
-        ptsEl.innerHTML = '<i class="fa-solid fa-star mr-1"></i>0 PTS';
-        if (window.animateValue) window.animateValue(ptsEl, 0, team.pts || 0, 800);
-        else ptsEl.innerHTML = '<i class="fa-solid fa-star mr-1"></i>' + (team.pts || 0) + ' PTS';
+        ptsEl.innerHTML = '<i class="fa-solid fa-star mr-1"></i><span class="anim-num">0</span> PTS';
+        if (window.animateValue) window.animateValue(ptsEl.querySelector('.anim-num'), 0, team.pts || 0, 800);
+        else ptsEl.innerHTML = '<i class="fa-solid fa-star mr-1"></i><span>' + (team.pts || 0) + '</span> PTS';
 
         const totalElo = roster.reduce((sum, p) => sum + (p.elo || 1200), 0);
         const eloEl = document.getElementById('team-modal-elo');
-        eloEl.innerHTML = '<i class="fa-solid fa-trophy mr-1"></i>0 ELO';
-        if (window.animateValue) window.animateValue(eloEl, 0, totalElo, 1000);
-        else eloEl.innerHTML = '<i class="fa-solid fa-trophy mr-1"></i>' + totalElo + ' ELO';
+        eloEl.innerHTML = '<i class="fa-solid fa-trophy mr-1"></i><span class="anim-num">0</span> ELO';
+        if (window.animateValue) window.animateValue(eloEl.querySelector('.anim-num'), 0, totalElo, 1000);
+        else eloEl.innerHTML = '<i class="fa-solid fa-trophy mr-1"></i><span>' + totalElo + '</span> ELO';
         
         // Populate stats strip
         document.getElementById('profile-wins').textContent = wins || 0;
