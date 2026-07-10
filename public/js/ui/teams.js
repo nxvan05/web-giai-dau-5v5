@@ -809,3 +809,134 @@ window.changeCaptain = async function(teamName, newCaptainDiscordId) {
         showNotification('error', 'Lỗi khi chuyển quyền');
     }
 };
+
+
+window.filterTeams = function() {
+    if (!window.allTeamsData) return;
+    const query = (document.getElementById('team-search-input')?.value || '').toLowerCase().trim();
+    const status = document.getElementById('team-status-filter')?.value || 'all';
+    
+    const filtered = window.allTeamsData.filter(team => {
+        const matchQuery = team.name.toLowerCase().includes(query);
+        const matchStatus = status === 'all' || team.status === status;
+        return matchQuery && matchStatus;
+    });
+    
+    renderTeamsList(filtered);
+};
+
+window.renderTeamsList = function(teamsToRender) {
+    const container = document.getElementById('teams-list');
+    const countBadge = document.getElementById('teams-count');
+    if (!container) return;
+    if (countBadge) countBadge.textContent = teamsToRender.length + ' đội';
+    
+    if (teamsToRender.length === 0) {
+        container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500">Không tìm thấy đội nào phù hợp</div>';
+        return;
+    }
+
+    const myPlayer = window.myPlayerState;
+    const myTeamName = window.myTeamNameState;
+
+    let html = '';
+    for (const team of teamsToRender) {
+        const roster = JSON.parse(team.rosterJson || '[]');
+        const subs = window.getSubstitutes(team);
+        const isCaptain = window.discordUser && team.captainDiscordId === window.discordUser.discordId;
+        const isMember = myTeamName === team.name;
+        const canJoin = window.discordUser && myPlayer && !myTeamName && (team.status === 'approved' || team.status === 'recruiting' || team.status === 'pending') && roster.length < 7 && !isCaptain;
+        const hasPendingRequest = window.pendingRequestsMap[team.name];
+
+        const statusStyles = {approved:{b:'border-emerald-500/40',bg:'bg-emerald-500/10 text-emerald-400 border-emerald-400/30'},ready:{b:'border-amber-500/50',bg:'bg-amber-500/20 text-amber-400 border-amber-400/30'},pending:{b:'border-gray-600/50',bg:'bg-gray-500/20 text-gray-400 border-gray-400/30'},recruiting:{b:'border-blue-500/40',bg:'bg-blue-500/20 text-blue-400 border-blue-400/30'},complete:{b:'border-valCyan/40',bg:'bg-valCyan/20 text-valCyan border-valCyan/30'},rejected:{b:'border-red-500/40',bg:'bg-red-500/20 text-red-400 border-red-400/30'}};
+        const statusLabels = {approved:'✅ Đã duyệt',ready:'⏳ Sẵn sàng · Chờ duyệt',pending:'⏳ Chờ duyệt',recruiting:'📢 Tuyển TV',complete:'✅ Hoàn chỉnh',rejected:'❌ Từ chối'};
+        const st = statusStyles[team.status] || {b:'border-gray-800',bg:'bg-gray-500/10 text-gray-400 border-gray-400/30'};
+        const sl = statusLabels[team.status] || team.status;
+
+        const rosterPlayers = team.rosterPlayers || [];
+        const rosterMap = {};
+        for (const rp of rosterPlayers) rosterMap[rp.discordId] = rp;
+        const captainP = rosterMap[team.captainDiscordId] || null;
+        const captainName = captainP ? captainP.displayName : team.captainDiscordId;
+        
+        const mains = roster.filter(id => !subs.includes(id));
+        const subMembers = roster.filter(id => subs.includes(id));
+
+        html += '<div class="bg-valCard border ' + st.b + ' rounded-2xl p-4 hover:border-valCyan/50 transition cursor-pointer flex flex-col" onclick="openTeamDetail(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')">';
+        
+        // Header
+        html += '<div class="flex items-start justify-between mb-3">';
+        html += '<div class="min-w-0 pr-2">';
+        html += '<h4 class="text-white font-bold text-base truncate">' + window.escHtml(team.name) + '</h4>';
+        html += '<p class="text-[10px] text-gray-500 mt-0.5 truncate"><i class="fa-solid fa-crown text-yellow-400/70 mr-1"></i>' + window.escHtml(captainName) + ' · ' + mains.length + '/5 + ' + subMembers.length + '/2</p>';
+        html += '</div>';
+        html += '<span class="text-[9px] font-mono ' + st.bg + ' border px-2 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0">' + sl + '</span>';
+        html += '</div>';
+
+        // Avatar row
+        html += '<div class="flex flex-wrap gap-1 mb-4">';
+        // Mains
+        for (const rid of mains) {
+            const p = rosterMap[rid];
+            const isCap = rid === team.captainDiscordId;
+            html += '<div class="relative group">';
+            html += '<img src="' + getAvatarUrl(rid, p?.discordAvatar, 32) + '" class="w-7 h-7 rounded-full border-2 ' + (isCap ? 'border-yellow-400' : 'border-gray-700') + ' object-cover" onerror="this.style.display=\'none\'">';
+            if (isCap) html += '<div class="absolute -top-1.5 -right-1.5 text-[8px] bg-yellow-400 text-black px-1 rounded-sm font-black">C</div>';
+            html += '<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-10 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap border border-gray-700">' + window.escHtml(p?.displayName || rid) + '</div>';
+            html += '</div>';
+        }
+        for (let i = mains.length; i < 5; i++) {
+            html += '<div class="w-7 h-7 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center text-gray-600 bg-gray-800/30" title="Trống"><i class="fa-solid fa-plus text-[10px]"></i></div>';
+        }
+        
+        // Subs divider
+        html += '<div class="w-px h-6 bg-gray-700 mx-1 self-center"></div>';
+        
+        // Subs
+        for (const rid of subMembers) {
+            const p = rosterMap[rid];
+            html += '<div class="relative group opacity-70 hover:opacity-100 transition">';
+            html += '<img src="' + getAvatarUrl(rid, p?.discordAvatar, 32) + '" class="w-6 h-6 rounded-full border-2 border-emerald-500/50 object-cover" onerror="this.style.display=\'none\'">';
+            html += '<div class="absolute -top-1.5 -right-1.5 text-[7px] bg-emerald-500 text-white px-1 rounded-sm font-black">SUB</div>';
+            html += '<div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-10 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap border border-gray-700">' + window.escHtml(p?.displayName || rid) + '</div>';
+            html += '</div>';
+        }
+        for (let i = subMembers.length; i < 2; i++) {
+            html += '<div class="w-6 h-6 rounded-full border-2 border-dashed border-gray-700/50 flex items-center justify-center text-gray-600 bg-gray-800/20" title="Trống dự bị"><i class="fa-solid fa-plus text-[8px]"></i></div>';
+        }
+        html += '</div>'; // End avatar row
+
+        // Stats & Actions
+        html += '<div class="mt-auto">';
+        const totalPts = rosterPlayers.reduce((s, p) => s + getPtsFromRank(p.peakRank||p.rank), 0);
+        const activePts = window.getActivePts(team, rosterPlayers);
+        
+        html += '<div class="flex items-center justify-between gap-2 mb-3">';
+        html += '<div class="flex items-center gap-2">';
+        html += '<span class="text-[11px] text-yellow-400 font-mono font-black bg-yellow-400/10 px-2 py-0.5 rounded-lg border border-yellow-400/20" title="' + activePts + 'đ đánh chính / ' + totalPts + 'đ tổng"><i class="fa-solid fa-star mr-1 text-[10px]"></i>' + activePts + 'đ</span>';
+        if (team.wins || team.losses) {
+            html += '<span class="text-[11px] text-gray-400 font-mono"><span class="text-emerald-400">' + (team.wins||0) + 'W</span> - <span class="text-red-400">' + (team.losses||0) + 'L</span></span>';
+        }
+        html += '</div>';
+        html += '</div>';
+
+        // Action Buttons
+        html += '<div class="flex gap-2" onclick="event.stopPropagation()">';
+        if (isMember) {
+            html += '<span class="flex-1 text-center text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-2 rounded-lg font-bold uppercase"><i class="fa-solid fa-check mr-1"></i>Đã Trong Đội</span>';
+        } else if (hasPendingRequest) {
+            html += '<button onclick="cancelJoinRequest(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')" class="flex-1 text-[10px] bg-yellow-500/10 text-yellow-400 border border-yellow-400/30 px-3 py-2 rounded-lg font-bold hover:bg-yellow-500/20 transition uppercase"><i class="fa-solid fa-clock mr-1"></i>Đã Gửi Đơn (Hủy)</button>';
+        } else if (canJoin) {
+            html += '<button onclick="requestJoinTeam(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')" class="flex-1 text-[10px] bg-valCyan/10 text-valCyan border border-valCyan/30 px-3 py-2 rounded-lg font-bold hover:bg-valCyan/20 transition uppercase"><i class="fa-solid fa-hand mr-1"></i>Xin Vào</button>';
+        } else if (!window.discordUser) {
+            html += '<span class="flex-1 text-center text-[10px] text-gray-500 border border-gray-700 px-3 py-2 rounded-lg font-bold uppercase">Đăng nhập để xin vào</span>';
+        } else {
+            html += '<button onclick="openTeamDetail(\'' + window.escHtml(team.name).replace(/'/g, "\\'") + '\')" class="flex-1 text-[10px] bg-gray-800 text-gray-300 border border-gray-700 px-3 py-2 rounded-lg font-bold hover:bg-gray-700 transition uppercase"><i class="fa-solid fa-circle-info mr-1"></i>Chi Tiết</button>';
+        }
+        html += '</div>';
+        
+        html += '</div>'; // mt-auto
+        html += '</div>'; // End Card
+    }
+    container.innerHTML = html;
+};
