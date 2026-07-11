@@ -113,6 +113,25 @@
             iconEl.innerHTML = '<img src="' + bestIcon + '" class="w-4 h-4">';
         } else { iconEl.innerHTML = ''; }
 
+        var tScore = (typeof window.getTrackerScore === 'function') ? window.getTrackerScore(p) : { score: 0, tier: 'D', color: 'text-gray-500', bg: 'bg-gray-500' };
+        var tsEl = document.getElementById('hc-tracker-score');
+        var tbEl = document.getElementById('hc-tracker-bar');
+        var ttEl = document.getElementById('hc-tracker-tier');
+        
+        if (tsEl) {
+            tsEl.textContent = tScore.score;
+            tsEl.className = 'text-xs font-bold font-mono ' + tScore.color;
+        }
+        if (tbEl) {
+            tbEl.style.width = (tScore.score / 10) + '%';
+            tbEl.className = 'absolute left-0 top-0 h-full transition-all duration-500 ' + tScore.bg;
+        }
+        if (ttEl) {
+            ttEl.textContent = tScore.tier;
+            var ringColor = tScore.color.replace('text-', '');
+            ttEl.className = 'w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ring-1 ring-inset shadow-[0_0_8px_rgba(0,0,0,0.5)] bg-gray-800/50 ' + tScore.color + ' ring-' + ringColor + '/50';
+        }
+
         positionCard(e);
     }
 

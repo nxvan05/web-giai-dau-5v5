@@ -194,11 +194,19 @@ function profileMemberCard(p, team) {
             ${p.riotId ? `<i class="fa-solid fa-copy cursor-pointer hover:text-white transition-colors" onclick="window.copyToClipboard('${p.riotId.replace(/'/g, "\\'")}', event)" title="Sao chép Riot ID"></i>` : ''}
         </div>
         
-        <div class="mt-2 flex flex-wrap justify-center gap-1">
+        <div class="mt-2 flex flex-wrap justify-center gap-1 w-full">
             <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${roleBgColor} ${roleColor}">${p.role || 'Player'}</span>
-            <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-gray-700 bg-gray-800 text-gray-300">
+            <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-gray-700 bg-gray-800 text-valCyan">
+                ${window.getPtsFromRank ? window.getPtsFromRank(p.peakRank || p.rank) : 0} PTS
+            </span>
+            ${(function() {
+                if (typeof window.getTrackerScore !== 'function') return '';
+                const ts = window.getTrackerScore(p);
+                return `<span class="inline-flex items-center px-1.5 py-0.5 rounded border border-gray-700 bg-gray-800 text-[9px] font-bold ${ts.color}" title="Hiệu suất thi đấu: ${ts.score}/1000">Hạng ${ts.tier}</span>`;
+            })()}
+            <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border border-gray-700 bg-gray-800 text-gray-300 w-full justify-center">
                 ${p.rank ? ((function(){var _u = (typeof window.getRankIconUrl === 'function' ? window.getRankIconUrl(p.peakRank || p.rank) : ''); return _u ? '<img src="' + _u + '" class="w-3 h-3">' : '';})()) : ''}
-                ${p.elo} ELO
+                ${p.peakRank || p.rank || 'N/A'} (${p.elo} ELO)
             </span>
         </div>
       </div>
@@ -223,7 +231,14 @@ function detailMemberCard(r, isSub, canKick, isCaptain, team) {
     <p class="text-[10px] text-white font-bold truncate cursor-pointer hover:text-valCyan" onclick="openProfile('${r.discordId}')" title="Xem hồ sơ">${r.displayName}</p>
     <p class="text-[9px] text-gray-500">${r.rankIconUrl ? '<img src="' + r.rankIconUrl + '" class="w-3 h-3 inline-block align-middle mr-0.5">' : ''}${r.rank || ''}${(r.rank && r.peakRank) ? ' · ' : ''}${r.peakRank ? 'Peak ' + r.peakRank : ''}</p>
     <p class="text-[9px] text-gray-500">${r.role || ''} · ${r.elo}elo${r.headshotPct != null ? ' · HS: ' + r.headshotPct + '%' : ''}</p>
-    <p class="text-[10px] text-yellow-400 font-mono font-bold">${getPtsFromRank(r.peakRank||r.rank)}đ</p>
+    <div class="flex justify-center gap-1 my-1">
+      <p class="text-[10px] text-yellow-400 font-mono font-bold px-1 bg-yellow-400/10 rounded border border-yellow-400/20">${getPtsFromRank(r.peakRank||r.rank)} PTS</p>
+      ${(function() {
+          if (typeof window.getTrackerScore !== 'function') return '';
+          const ts = window.getTrackerScore(r);
+          return `<span class="px-1 rounded bg-gray-800/80 text-[10px] font-bold ${ts.color} border border-gray-700" title="Hiệu suất">${ts.tier}</span>`;
+      })()}
+    </div>
     ${isSub ? '<p class="text-[8px] text-gray-500"><i class="fa-solid fa-chair"></i> Dự Bị</p>' : ''}
     ${canKick ? `<div class="flex justify-center gap-1 mt-1"><button onclick="toggleSubstituteRole('${team.name}', '${r.discordId}', this)" class="text-[9px] bg-gray-700/40 hover:bg-gray-600 border border-gray-600/30 text-gray-300 px-1.5 py-0.5 rounded transition" title="${isSub ? 'Lên Đánh Chính' : 'Xuống Dự Bị'}"><i class="fa-solid fa-arrows-rotate"></i></button><button onclick="confirmKickMember('${team.name}', '${r.discordId}', '${r.displayName.replace(/'/g, "\\'")}')" class="text-[9px] bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-red-200 px-1.5 py-0.5 rounded transition"><i class="fa-solid fa-user-minus mr-0.5"></i>Đá</button></div>` : ''}
     ${isCap ? '<p class="text-[8px] text-emerald-400 mt-1"><i class="fa-solid fa-crown"></i> Đội trưởng</p>' : ''}
@@ -644,14 +659,33 @@ window.loadCompleteTeams = async function() {
             } catch(e) { container.innerHTML = '<div class="text-center py-4 text-gray-500 text-xs">Lỗi tải dữ liệu</div>'; }
         }
 window.adminAddToTeam = async function(teamName) {
-            const id = prompt('Nhập Discord ID của người chơi để thêm vào đội ' + teamName + ':');
-            if (!id) return;
+    window.adminTeamModalName = teamName;
+    window.adminAddPlayerSuccessCallback = function(name) {
+        if (typeof loadCompleteTeams === 'function') loadCompleteTeams();
+        if (typeof openTeamProfile === 'function') openTeamProfile(name);
+    };
+    
+    if (typeof window.adminAddMemberToTeam === 'function') {
+        if (!window.adminPlayerList) {
             try {
-                await window.api('/api/teams/' + encodeURIComponent(teamName) + '/admin-add-player', { method: 'POST', body: { discordId: id } });
-                window.showToast('Đã thêm vào đội!', 'success');
-                loadCompleteTeams();
-            } catch(e) { window.showToast('Lỗi: ' + e.message, 'error'); }
+                window.adminPlayerList = await window.api('/api/players/all');
+            } catch(e) {
+                window.showToast('Lỗi tải danh sách người chơi', 'error');
+                return;
+            }
         }
+        window.adminAddMemberToTeam();
+    } else {
+        const id = prompt('Nhập Discord ID của người chơi để thêm vào đội ' + teamName + ':');
+        if (!id) return;
+        try {
+            await window.api('/api/teams/' + encodeURIComponent(teamName) + '/admin-add-player', { method: 'POST', body: { discordId: id } });
+            window.showToast('Đã thêm vào đội!', 'success');
+            loadCompleteTeams();
+            if (typeof openTeamProfile === 'function') openTeamProfile(teamName);
+        } catch(e) { window.showToast('Lỗi: ' + e.message, 'error'); }
+    }
+}
 window.adminKickMember = async function(teamName, discordId) {
             if (!confirm('Đá người chơi này khỏi đội?')) return;
             try {

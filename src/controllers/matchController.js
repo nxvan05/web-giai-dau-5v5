@@ -141,9 +141,22 @@ exports.getStandings = async (req, res) => {
     else if (m.winner === m.team2Name) { groups[g][m.team2Name].wins++; groups[g][m.team2Name].pts += 3; groups[g][m.team1Name].losses++; }
   }
 
+  const allTeams = await prisma.team.findMany();
+  const teamMap = {};
+  for (const t of allTeams) teamMap[t.name] = t;
+
   const sorted = {};
   for (const [g, teams] of Object.entries(groups)) {
-    const arr = Object.entries(teams).map(([name, s]) => ({ name, ...s }));
+    const arr = Object.entries(teams).map(([name, s]) => {
+      const tInfo = teamMap[name] || {};
+      return {
+        name, ...s,
+        logo: tInfo.logo,
+        color: tInfo.color,
+        shortName: tInfo.shortName,
+        rosterPts: tInfo.pts || 0
+      };
+    });
     arr.sort((a, b) => {
       if (b.pts !== a.pts) return b.pts - a.pts;
       const h2h = matches.filter(m => (m.team1Name === a.name && m.team2Name === b.name) || (m.team1Name === b.name && m.team2Name === a.name));

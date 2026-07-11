@@ -43,6 +43,11 @@ app.use(helmet({
 }));
 
 app.use((req, res, next) => {
+  res.setHeader('Origin-Agent-Cluster', '?1');
+  next();
+});
+
+app.use((req, res, next) => {
   // if (req.headers['x-forwarded-proto'] === 'http' && !req.headers.host?.startsWith('localhost')) {
   //   return res.redirect('https://' + req.headers.host + req.url);
   // }

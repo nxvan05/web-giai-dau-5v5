@@ -1,6 +1,39 @@
 window.adminSelectedPlayers = new Set();
 window.adminPlayerList = [];
 
+// Custom Confirm Modal
+window.showConfirm = function(message, onConfirm) {
+    const modal = document.getElementById('custom-confirm-modal');
+    const box = document.getElementById('custom-confirm-box');
+    const msgEl = document.getElementById('custom-confirm-message');
+    const btnYes = document.getElementById('custom-confirm-yes');
+    const btnNo = document.getElementById('custom-confirm-no');
+    
+    if (!modal) return confirm(message) ? onConfirm() : null; // Fallback
+    
+    msgEl.textContent = message;
+    modal.classList.remove('hidden');
+    // small delay for transition
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        box.classList.remove('scale-95');
+    }, 10);
+
+    const closeModal = () => {
+        modal.classList.add('opacity-0');
+        box.classList.add('scale-95');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+        btnYes.onclick = null;
+        btnNo.onclick = null;
+    };
+
+    btnNo.onclick = closeModal;
+    btnYes.onclick = () => {
+        closeModal();
+        onConfirm();
+    };
+};
+
 window.adminRefreshPlayers = async function() {
     if (!window.apiToken) return;
     try {
@@ -516,10 +549,61 @@ window.adminOpenTeamModal = async function(teamName) {
     modal.classList.remove('hidden');
 };
 
+window.adminSearchPlayerForTeam = function(query) {
+    const resDiv = document.getElementById('admin-team-modal-search-results');
+    const idInput = document.getElementById('admin-team-modal-add-id');
+    
+    if (!query || !query.trim()) {
+        resDiv.classList.add('hidden');
+        idInput.value = '';
+        return;
+    }
+    
+    const q = query.toLowerCase().trim();
+    const currentTeam = document.getElementById('admin-team-modal-name').textContent;
+    
+    let matches = window.adminPlayerList.filter(p => {
+        if (p.teamId === currentTeam) return false;
+        const txt = ((p.displayName||'') + ' ' + (p.riotId||'') + ' ' + (p.discordId||'')).toLowerCase();
+        return txt.includes(q);
+    });
+    
+    matches = matches.slice(0, 10);
+    
+    if (matches.length === 0) {
+        resDiv.innerHTML = '<div class="px-3 py-2 text-[10px] text-gray-500">Không tìm thấy tuyển thủ nào</div>';
+    } else {
+        resDiv.innerHTML = matches.map(p => `
+            <div class="px-3 py-2 hover:bg-gray-800 cursor-pointer text-[10px] border-b border-gray-800/50 last:border-0 transition" onclick="adminSelectPlayerForTeam('${p.discordId || p.id}', '${(p.displayName||'').replace(/'/g, "\\'")}')">
+                <div class="font-bold text-white flex items-center gap-1">${p.displayName || p.discord} <span class="text-gray-500 font-normal truncate">(${p.riotId || 'N/A'})</span></div>
+                <div class="text-[9px] ${p.teamId ? 'text-amber-400' : 'text-emerald-400'} mt-0.5">${p.teamId ? 'Đang ở: ' + p.teamId : 'Chưa có đội'}</div>
+            </div>
+        `).join('');
+    }
+    resDiv.classList.remove('hidden');
+};
+
+window.adminSelectPlayerForTeam = function(id, name) {
+    document.getElementById('admin-team-modal-add-input').value = name;
+    document.getElementById('admin-team-modal-add-id').value = id;
+    document.getElementById('admin-team-modal-search-results').classList.add('hidden');
+};
+
+document.addEventListener('click', (e) => {
+    const resDiv = document.getElementById('admin-team-modal-search-results');
+    if (resDiv && !e.target.closest('#admin-team-modal-add-input') && !e.target.closest('#admin-team-modal-search-results')) {
+        resDiv.classList.add('hidden');
+    }
+});
+
 window.adminTransferPlayerModal = async function() {
-    const input = document.getElementById('admin-team-modal-add-id');
-    const discordId = input?.value.trim();
-    if (!discordId) return window.showToast('Vui lòng nhập Discord ID', 'error');
+    const inputId = document.getElementById('admin-team-modal-add-id');
+    const inputSearch = document.getElementById('admin-team-modal-add-input');
+    
+    let discordId = inputId?.value.trim();
+    if (!discordId) discordId = inputSearch?.value.trim(); // Fallback if they pasted ID directly
+    
+    if (!discordId) return window.showToast('Vui lòng chọn hoặc nhập Discord ID', 'error');
     if (!window.adminTeamModalName) return window.showToast('Không xác định được đội hiện tại', 'error');
     
     // Using the same endpoint as substitutePlayer but forcing it into current team
@@ -531,7 +615,7 @@ window.adminTransferPlayerModal = async function() {
     try {
         const teamName = window.adminTeamModalName;
         // In this architecture, adding a member handles transfers automatically if they're in another team.
-        const res = await window.api('/api/teams/' + encodeURIComponent(teamName) + '/players', {
+        const res = await window.api('/api/teams/' + encodeURIComponent(teamName) + '/admin-add-player', {
             method: 'POST',
             body: { discordId }
         });
@@ -541,7 +625,8 @@ window.adminTransferPlayerModal = async function() {
         }
         hideLoading();
         window.showToast('Đã thêm thành công!', 'success');
-        input.value = ''; // clear input
+        inputId.value = '';
+        inputSearch.value = '';
         // Refresh modal data
         adminOpenTeamModal(teamName);
         // Also refresh background team cards if needed
@@ -632,30 +717,61 @@ window.closeAdminAddPlayerModal = function() {
     document.getElementById('admin-add-player-modal').classList.add('hidden');
 };
 
+window.adminFilterAddPlayer = function() {
+    const query = document.getElementById('admin-ap-search').value.toLowerCase();
+    const select = document.getElementById('admin-ap-discord');
+    const freeAgents = (window.adminPlayerList || []).filter(p => !p.teamId);
+    
+    select.innerHTML = '<option value="">-- Chọn thành viên --</option>';
+    freeAgents.forEach(p => {
+        const name = p.displayName || p.riotId || p.discordId;
+        if (name.toLowerCase().includes(query)) {
+            select.innerHTML += `<option value="${p.discordId}">${name}</option>`;
+        }
+    });
+};
+
 window.adminSubmitAddPlayer = function() {
     const discordId = document.getElementById('admin-ap-discord').value;
     if (!discordId) return window.showToast('Vui lòng chọn người chơi', 'error');
     
     const teamName = window.adminTeamModalName;
+    const btn = event.currentTarget;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Đang thêm...';
+    btn.disabled = true;
+
     window.api('/api/teams/' + encodeURIComponent(teamName) + '/admin-add-player', { method: 'POST', body: { discordId } })
         .then(() => { 
             window.showToast('Đã thêm vào đội!', 'success'); 
             closeAdminAddPlayerModal();
-            adminOpenTeamModal(teamName); 
-            adminLoadTeams(); 
-            adminRefreshPlayers(); // refresh player data
+            if (typeof window.adminAddPlayerSuccessCallback === 'function') {
+                window.adminAddPlayerSuccessCallback(teamName);
+            } else {
+                if (typeof adminOpenTeamModal === 'function') adminOpenTeamModal(teamName); 
+                if (typeof adminLoadTeams === 'function') adminLoadTeams(); 
+                if (typeof adminRefreshPlayers === 'function') adminRefreshPlayers(); 
+            }
         })
-        .catch(e => window.showToast('Lỗi: ' + e.message, 'error'));
+        .catch(e => window.showToast('Lỗi: ' + e.message, 'error'))
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
 };
 
-window.adminKickMember = async function(teamName, discordId) {
-    if (!confirm('Xóa thành viên này khỏi đội?')) return;
-    try {
-        await window.api('/api/teams/' + encodeURIComponent(teamName) + '/players/' + discordId, { method: 'DELETE' });
-        window.showToast('Đã xóa thành viên!', 'success');
-        adminOpenTeamModal(teamName);
-        adminLoadTeams();
-    } catch(e) { window.showToast('Lỗi: ' + e.message, 'error'); }
+window.adminKickMember = function(teamName, discordId) {
+    window.showConfirm('Bạn có chắc chắn muốn xóa thành viên này khỏi đội?', async () => {
+        try {
+            await window.api('/api/teams/' + encodeURIComponent(teamName) + '/players/' + discordId, { method: 'DELETE' });
+            window.showToast('Đã xóa thành viên!', 'success');
+            adminOpenTeamModal(teamName);
+            adminLoadTeams();
+            adminRefreshPlayers();
+        } catch(e) { 
+            window.showToast('Lỗi: ' + e.message, 'error'); 
+        }
+    });
 };
 
 window.adminRenameCurrentTeam = function() {
@@ -923,6 +1039,10 @@ window.loadAdminDashboard = async function() {
             window.api('/api/matches'),
             window.api('/api/audit')
         ]);
+        
+        // Also load disputes and penalties in background
+        if (typeof loadDisputes === 'function') loadDisputes();
+        if (typeof loadPenalties === 'function') loadPenalties();
         document.getElementById('dash-stat-players').textContent = players.length;
         document.getElementById('dash-stat-matches').textContent = matches.length;
         document.getElementById('dash-stat-completed').textContent = matches.filter(m => m.status === 'completed').length;
@@ -1015,3 +1135,166 @@ window.adminUpdateTeamStatus = async function(status) {
         adminLoadTeams();
     } catch(e) { window.showToast('Lỗi: ' + e.message, 'error'); }
 };
+
+// ==========================================
+// DISPUTES (KHIẾU NẠI)
+// ==========================================
+window.loadDisputes = async function() {
+    try {
+        const res = await window.api('/api/disputes');
+        adminRenderDisputes(res.data || res);
+    } catch(e) {}
+};
+
+window.adminRenderDisputes = function(disputes) {
+    const tbody = document.getElementById('disputes-table-body');
+    const empty = document.getElementById('disputes-empty');
+    if (!tbody || !empty) return;
+    if (!disputes || disputes.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+    tbody.innerHTML = disputes.map(d => {
+        const statusClass = d.status === 'open' ? 'text-orange-400 bg-orange-400/10' : 'text-emerald-400 bg-emerald-400/10';
+        const statusText = d.status === 'open' ? 'Chưa Xử Lý' : 'Đã Giải Quyết';
+        return `
+            <tr class="border-b border-gray-800/50 hover:bg-valBg/30 transition group">
+                <td class="py-3 px-3"><span class="font-mono text-valCyan">${d.matchId || '-'}</span><br><span class="text-[9px] text-gray-500">${new Date(d.createdAt).toLocaleString('vi-VN')}</span></td>
+                <td class="py-3 px-3 font-bold text-white">${d.teamName}</td>
+                <td class="py-3 px-3 hidden sm:table-cell text-gray-400">${d.reason}</td>
+                <td class="py-3 px-3 text-center"><span class="${statusClass} px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">${statusText}</span></td>
+                <td class="py-3 px-3 text-right">
+                    ${d.status === 'open' ? `<button onclick="adminResolveDispute('${d.id}')" class="text-emerald-400 hover:text-emerald-300 border border-emerald-400/30 hover:bg-emerald-400/10 px-2 py-1 rounded text-[10px] transition"><i class="fa-solid fa-check mr-1"></i>Xử Lý</button>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+window.adminResolveDispute = async function(id) {
+    const resolution = prompt('Nhập kết quả xử lý (sẽ hiển thị cho người chơi):');
+    if (!resolution) return;
+    try {
+        await window.api('/api/disputes/' + id, { method: 'PUT', body: { status: 'resolved', resolution } });
+        window.showToast('Đã xử lý khiếu nại!', 'success');
+        loadDisputes();
+    } catch(e) { window.showToast('Lỗi: ' + e.message, 'error'); }
+};
+
+
+// ==========================================
+// PENALTIES (THẺ PHẠT)
+// ==========================================
+window.loadPenalties = async function() {
+    try {
+        const res = await window.api('/api/penalties');
+        adminRenderPenalties(res.data || res);
+    } catch(e) {}
+};
+
+window.adminRenderPenalties = function(penalties) {
+    const tbody = document.getElementById('penalties-table-body');
+    const empty = document.getElementById('penalties-empty');
+    if (!tbody || !empty) return;
+    if (!penalties || penalties.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+    tbody.innerHTML = penalties.map(p => {
+        const sevClass = p.severity === 'ban' ? 'text-red-400 bg-red-400/10 border-red-500' : 'text-yellow-400 bg-yellow-400/10 border-yellow-500';
+        return `
+            <tr class="border-b border-gray-800/50 hover:bg-valBg/30 transition group">
+                <td class="py-3 px-3 font-bold text-white">${p.playerName}<br><span class="text-[9px] font-mono text-gray-500">${p.playerId}</span></td>
+                <td class="py-3 px-3 text-gray-400">${p.reason}</td>
+                <td class="py-3 px-3 text-center hidden sm:table-cell"><span class="${sevClass} px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">${p.severity}</span><br><span class="text-[9px] text-gray-500">${new Date(p.createdAt).toLocaleDateString('vi-VN')}</span></td>
+                <td class="py-3 px-3 text-right">
+                    <button onclick="adminRevokePenalty('${p.id}')" class="text-gray-500 hover:text-red-400 text-sm transition" title="Xóa bỏ thẻ phạt"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+window.adminOpenPenaltyModal = async function() {
+    document.getElementById('admin-penalty-search').value = '';
+    document.getElementById('admin-penalty-id').value = '';
+    document.getElementById('admin-penalty-name').value = '';
+    document.getElementById('admin-penalty-reason').value = '';
+    document.getElementById('admin-penalty-search-results').classList.add('hidden');
+    document.getElementById('admin-penalty-modal').classList.remove('hidden');
+    if (!window.adminPlayerList) {
+        try { window.adminPlayerList = await window.api('/api/players/all'); } catch(e) {}
+    }
+};
+
+window.closeAdminPenaltyModal = function() {
+    document.getElementById('admin-penalty-modal').classList.add('hidden');
+};
+
+window.adminSearchPenaltyPlayer = function(query) {
+    const list = window.adminPlayerList || [];
+    const resBox = document.getElementById('admin-penalty-search-results');
+    if (!query || query.length < 2) {
+        resBox.classList.add('hidden');
+        return;
+    }
+    const q = query.toLowerCase();
+    const matches = list.filter(p => 
+        (p.displayName && p.displayName.toLowerCase().includes(q)) || 
+        (p.riotId && p.riotId.toLowerCase().includes(q)) || 
+        (p.discordId && p.discordId.includes(q))
+    ).slice(0, 5);
+    
+    if (matches.length === 0) {
+        resBox.innerHTML = '<div class="p-3 text-gray-500 text-xs text-center">Không tìm thấy</div>';
+        resBox.classList.remove('hidden');
+        return;
+    }
+    
+    resBox.innerHTML = matches.map(p => `
+        <div class="p-2 hover:bg-valBg cursor-pointer flex justify-between items-center border-b border-gray-800 last:border-0" onclick="adminSelectPenaltyPlayer('${p.discordId || p.id}', '${p.displayName || p.riotId}')">
+            <div><span class="text-valCyan text-sm font-bold">${p.displayName || 'Unknown'}</span> <span class="text-gray-500 text-[10px] ml-1">${p.riotId}</span></div>
+            <div class="text-[10px] text-gray-400">${p.teamId || 'Tự do'}</div>
+        </div>
+    `).join('');
+    resBox.classList.remove('hidden');
+};
+
+window.adminSelectPenaltyPlayer = function(id, name) {
+    document.getElementById('admin-penalty-id').value = id;
+    document.getElementById('admin-penalty-name').value = name;
+    document.getElementById('admin-penalty-search').value = name;
+    document.getElementById('admin-penalty-search-results').classList.add('hidden');
+};
+
+window.adminSubmitPenalty = async function(e) {
+    if (e) e.preventDefault();
+    const playerId = document.getElementById('admin-penalty-id').value;
+    const playerName = document.getElementById('admin-penalty-name').value;
+    const severity = document.getElementById('admin-penalty-severity').value;
+    const reason = document.getElementById('admin-penalty-reason').value.trim();
+    
+    if (!playerId) return window.showToast('Vui lòng chọn tuyển thủ', 'error');
+    if (!reason) return window.showToast('Vui lòng nhập lý do phạt', 'error');
+    
+    try {
+        await window.api('/api/penalties', { method: 'POST', body: { playerId, playerName, severity, reason } });
+        window.showToast('Đã ban hành thẻ phạt!', 'success');
+        closeAdminPenaltyModal();
+        loadPenalties();
+    } catch(err) { window.showToast('Lỗi: ' + err.message, 'error'); }
+};
+
+window.adminRevokePenalty = async function(id) {
+    if (!confirm('Xóa bỏ lệnh phạt này?')) return;
+    try {
+        await window.api('/api/penalties/' + id, { method: 'DELETE' });
+        window.showToast('Đã xóa thẻ phạt', 'success');
+        loadPenalties();
+    } catch(e) { window.showToast('Lỗi: ' + e.message, 'error'); }
+};
+

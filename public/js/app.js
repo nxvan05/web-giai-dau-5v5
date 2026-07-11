@@ -352,7 +352,15 @@
                         <td class="py-2.5 px-3 text-center font-bold ${rankNum <= 3 ? 'text-yellow-400 text-sm' : 'text-gray-400'}">${rankNum <= 3 ? ['🥇','🥈','🥉'][rankNum-1] : '#' + rankNum}</td>
                         <td class="py-2.5 px-3 font-bold text-valCyan hover:text-white transition flex items-center gap-2 flex-wrap min-w-[150px]">
                             <img src="${getAvatarUrl(p.discordId, p.discordAvatar, 24)}" class="w-5 h-5 rounded-full border border-gray-700 inline-block hover:ring-2 hover:ring-valCyan transition" data-discord-id="${p.discordId||''}" data-name="${(p.displayName||'?').replace(/"/g,'&quot;')}" onerror="this.src=window.getFallbackAvatar('${p.discordId||''}','${(p.displayName||'?').replace(/'/g,"\\'")}',24)">
-                            ${p.displayName} <i class="fa-solid fa-magnifying-glass-chart text-gray-500 hover:text-valCyan ml-1 transition-colors cursor-pointer" onclick="event.stopPropagation(); openProfile('${p.discordId}', true)" title="Xem Tracker"></i>
+                            ${p.displayName} 
+                            ${(function() {
+                                if (typeof window.getTrackerScore !== 'function') return '';
+                                const ts = window.getTrackerScore(p);
+                                const ring = ts.color.replace('text-', 'ring-');
+                                const bg = ts.color.replace('text-', 'bg-');
+                                return `<span class="px-1.5 py-px rounded text-[9px] font-black tracking-wider ring-1 ring-inset ${ring}/50 ${bg}/20 ${ts.color}" title="Tracker Score: ${ts.score}/1000">${ts.tier}</span>`;
+                            })()}
+                            <i class="fa-solid fa-magnifying-glass-chart text-gray-500 hover:text-valCyan ml-1 transition-colors cursor-pointer" onclick="event.stopPropagation(); openProfile('${p.discordId}', true)" title="Xem Tracker"></i>
                         </td>
                         <td class="py-2.5 px-3 text-center">${p.teamId ? `<span class="team-link text-[10px] bg-valCyan/10 text-valCyan border border-valCyan/20 px-2 py-0.5 rounded-full cursor-pointer hover:bg-valCyan hover:text-black transition" title="Click xem chi tiết đội" onclick="event.stopPropagation();openTeamProfile('${p.teamId.replace(/'/g, "\\'")}')">${p.teamId}</span>` : '<span class="text-[10px] text-gray-600">-</span>'}</td>
                         <td class="py-2.5 px-3 text-center text-gray-300 relative group cursor-help">
@@ -383,7 +391,7 @@
                     let html = `<div class="bg-valBg/60 border border-gray-800 p-4 rounded-xl">
                         <h4 class="text-xs font-bold text-valCyan uppercase mb-2">Bảng ${group}</h4>
                         <table class="w-full text-xs">
-                            <thead><tr class="text-gray-500 uppercase"><th class="py-1 px-2 text-left">Đội</th><th class="py-1 px-2 text-center">Trận</th><th class="py-1 px-2 text-center">W</th><th class="py-1 px-2 text-center">L</th><th class="py-1 px-2 text-center text-emerald-400">Điểm</th></tr></thead>
+                            <thead><tr class="text-gray-500 uppercase"><th class="py-1 px-2 text-left">Đội</th><th class="py-1 px-2 text-center">Trận</th><th class="py-1 px-2 text-center">W</th><th class="py-1 px-2 text-center">L</th><th class="py-1 px-2 text-center hidden sm:table-cell text-yellow-500" title="Tổng điểm quỹ của Đội (tối đa 20)">Quỹ PTS</th><th class="py-1 px-2 text-center text-emerald-400">Điểm</th></tr></thead>
                             <tbody>`;
                     teams.forEach((t, i) => {
                         html += `<tr class="${i < 2 ? 'bg-emerald-500/5 border-l-2 border-emerald-400' : 'border-b border-gray-800/50'}">
@@ -399,7 +407,8 @@
                             <td class="py-1.5 px-2 text-center">${t.played}</td>
                             <td class="py-1.5 px-2 text-center text-emerald-400">${t.wins}</td>
                             <td class="py-1.5 px-2 text-center text-red-400">${t.losses}</td>
-                            <td class="py-1.5 px-2 text-center font-black text-white">${t.pts}</td>
+                            <td class="py-1.5 px-2 text-center hidden sm:table-cell"><span class="text-[9px] font-mono font-bold bg-yellow-400/10 text-yellow-500 px-1.5 py-0.5 rounded border border-yellow-400/20">${t.rosterPts || 0}/20</span></td>
+                            <td class="py-1.5 px-2 text-center font-black text-white text-sm">${t.pts}</td>
                         </tr>`;
                     });
                     html += '</tbody></table></div>';

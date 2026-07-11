@@ -15,7 +15,7 @@ exports.create = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
   // admin auth: use body.discordId; discord auth: use JWT
-  const discordId = req.discordUser ? req.discordUser.discordId : req.body.discordId;
+  const discordId = (!req.user && req.discordUser) ? req.discordUser.discordId : req.body.discordId;
   const { displayName, riotId, rank, role, type, pts, peakRank, cardUrl, accountLevel, discordAvatar, rankIconUrl } = req.body;
 
   if (!discordId) return res.status(400).json({ error: 'Thiếu Discord ID' });
@@ -43,14 +43,14 @@ exports.create = async (req, res) => {
 exports.updatePartial = async (req, res) => {
   const { id } = req.params;
   // Discord user can only edit their own record
-  if (req.discordUser) {
+  if (!req.user && req.discordUser) {
     const existing = await prisma.player.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Not found' });
     if (existing.discordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Không có quyền sửa người khác' });
   }
   
   // If discordUser, only allow safe fields. If admin, allow all fields.
-  const allowed = req.discordUser 
+  const allowed = (!req.user && req.discordUser)
     ? ['displayName', 'riotId', 'rank', 'role', 'type', 'cardUrl', 'accountLevel'] 
     : ['displayName','discordId','riotId','rank','role','type','pts','teamId','elo','wins','losses','mvps', 'peakRank', 'discordAvatar'];
   const data = {};

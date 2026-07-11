@@ -878,9 +878,11 @@
                             <div>
                                 <div class="flex items-center justify-between mb-2">
                                     <h4 class="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1"><i class="fa-solid fa-users"></i> Thành Viên</h4>
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" id="admin-team-modal-add-id" placeholder="Discord ID..." class="bg-valBg border border-gray-800 rounded px-2 py-1 text-[10px] text-white outline-none focus:border-valCyan w-[140px]" onkeydown="if(event.key==='Enter') adminTransferPlayerModal()">
-                                        <button onclick="adminTransferPlayerModal()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-valCyan/30 transition">Thêm/Chuyển</button>
+                                    <div class="flex items-center gap-2 relative">
+                                        <input type="hidden" id="admin-team-modal-add-id">
+                                        <input type="text" id="admin-team-modal-add-input" placeholder="Tìm Tên / Riot / ID..." class="bg-valBg border border-gray-800 rounded px-2 py-1 text-[10px] text-white outline-none focus:border-valCyan w-[160px]" oninput="adminSearchPlayerForTeam(this.value)" autocomplete="off" onkeydown="if(event.key==='Enter') adminTransferPlayerModal()">
+                                        <div id="admin-team-modal-search-results" class="absolute top-full left-0 mt-1 w-full bg-valCard border border-gray-700 rounded shadow-xl max-h-48 overflow-y-auto hidden z-50"></div>
+                                        <button onclick="adminTransferPlayerModal()" class="bg-valCyan/20 text-valCyan border border-valCyan/30 px-2 py-1 rounded text-[10px] font-bold hover:bg-valCyan/30 transition whitespace-nowrap">Thêm/Chuyển</button>
                                     </div>
                                 </div>
                                 <div class="overflow-x-auto border border-gray-800 rounded-lg">
@@ -1035,6 +1037,58 @@
                     </div>
                     <div id="score-reports-list" class="space-y-2 hidden"></div>
                     <div id="score-reports-empty" class="text-center py-8 text-gray-500 hidden"><i class="fa-solid fa-flag-checkered text-2xl mb-2 block"></i>Không có báo cáo nào</div>
+                </div>
+            </div>
+
+            <!-- Admin: Disputes -->
+            <div id="admin-sub-disputes" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-scale-balanced text-orange-400 text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Khiếu Nại</h3>
+                    <button onclick="loadDisputes()" class="ml-auto text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition"><i class="fa-solid fa-rotate mr-1"></i>Làm Mới</button>
+                </div>
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-gray-400 uppercase border-b border-gray-800 text-[10px]">
+                                    <th class="py-2 px-3 text-left">Trận đấu</th>
+                                    <th class="py-2 px-3 text-left">Đội khiếu nại</th>
+                                    <th class="py-2 px-3 text-left hidden sm:table-cell">Lý do</th>
+                                    <th class="py-2 px-3 text-center">Trạng thái</th>
+                                    <th class="py-2 px-3 text-right">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="disputes-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div id="disputes-empty" class="text-center py-8 text-gray-500 hidden"><i class="fa-solid fa-scale-balanced text-2xl mb-2 block text-gray-600"></i>Không có khiếu nại nào</div>
+                </div>
+            </div>
+
+            <!-- Admin: Penalties -->
+            <div id="admin-sub-penalties" class="mb-8 bg-valCard border border-gray-800 rounded-2xl shadow-xl overflow-hidden hidden">
+                <div class="bg-gradient-to-r from-valBg to-valCard px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+                    <i class="fa-solid fa-gavel text-red-400 text-xl"></i>
+                    <h3 class="font-display text-md font-bold text-white uppercase tracking-wider">Thẻ Phạt</h3>
+                    <button onclick="adminOpenPenaltyModal()" class="ml-auto text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-400/30 px-2.5 py-1.5 rounded-lg transition"><i class="fa-solid fa-plus mr-1"></i>Phạt</button>
+                    <button onclick="loadPenalties()" class="text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition ml-1"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-gray-400 uppercase border-b border-gray-800 text-[10px]">
+                                    <th class="py-2 px-3 text-left">Tuyển thủ</th>
+                                    <th class="py-2 px-3 text-left">Lý do</th>
+                                    <th class="py-2 px-3 text-center hidden sm:table-cell">Mức độ</th>
+                                    <th class="py-2 px-3 text-right">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="penalties-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div id="penalties-empty" class="text-center py-8 text-gray-500 hidden"><i class="fa-solid fa-shield-halved text-2xl mb-2 block text-gray-600"></i>Không có thẻ phạt nào</div>
                 </div>
             </div>
 
@@ -1260,7 +1314,11 @@
                 <div class="p-6 space-y-4">
                     <div>
                         <label class="text-[10px] text-gray-400 uppercase font-bold block mb-1">Chọn Người Chơi (Free Agent)</label>
-                        <select id="admin-ap-discord" class="w-full bg-valBg border border-gray-800 rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-valCyan transition">
+                        <div class="relative">
+                            <i class="fa-solid fa-search absolute left-3 top-3 text-gray-500 text-sm"></i>
+                            <input type="text" id="admin-ap-search" placeholder="Tìm tên/Riot ID..." class="w-full bg-valBg border border-gray-800 rounded-t-lg pl-9 pr-3 py-2 text-sm text-white outline-none focus:border-valCyan transition border-b-0" onkeyup="adminFilterAddPlayer()">
+                        </div>
+                        <select id="admin-ap-discord" size="5" class="w-full bg-valBg border border-gray-800 rounded-b-lg px-3 py-2 text-sm text-white outline-none focus:border-valCyan transition h-32 overflow-y-auto">
                             <option value="">-- Chọn thành viên --</option>
                         </select>
                     </div>
@@ -2895,6 +2953,22 @@
     <script src="/js/ui/notifications.js"></script>
     <script src="/js/ui/profile.js"></script>
     <script src="/js/ui/hovercard.js"></script>
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm-modal" class="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+        <div class="bg-valCard border border-valCyan/30 rounded-2xl shadow-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-200" id="custom-confirm-box" onclick="event.stopPropagation()">
+            <div class="flex items-center gap-2 px-6 py-4 border-b border-gray-800">
+                <i class="fa-solid fa-circle-exclamation text-valRed text-lg"></i>
+                <h3 class="font-display text-md font-bold text-white uppercase">Xác Nhận</h3>
+            </div>
+            <div class="p-6">
+                <p id="custom-confirm-message" class="text-gray-300 text-sm mb-6">Bạn có chắc chắn muốn thực hiện hành động này?</p>
+                <div class="flex gap-3">
+                    <button id="custom-confirm-yes" class="flex-1 bg-valRed/20 text-valRed border border-valRed/30 font-bold py-2.5 rounded-xl text-sm hover:bg-valRed/30 transition">Xác Nhận</button>
+                    <button id="custom-confirm-no" class="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl text-sm hover:bg-gray-700 transition">Hủy</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <script src="/js/app.js"></script>
     <script src="/js/namespace.js"></script>

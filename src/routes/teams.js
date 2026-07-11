@@ -147,7 +147,7 @@ router.put('/:name/role', orAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
     const { targetDiscordId } = req.body;
-    const isAdmin = req.user && req.user.isAdmin;
+    const isAdmin = !!req.user;
     const discordId = req.discordUser ? req.discordUser.discordId : null;
 
     if (!targetDiscordId) return res.status(400).json({ error: 'Thiếu targetDiscordId' });
@@ -231,16 +231,17 @@ router.put('/:name/captain', orAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Rename team (captain only) — requires Discord auth
+// Rename team (captain or admin) — requires Discord auth or admin auth
 router.put('/:name/rename', orAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
     const { newName } = req.body;
+    const isAdmin = !!req.user;
     const discordId = req.discordUser ? req.discordUser.discordId : null;
     if (!newName) return res.status(400).json({ error: 'Thiếu tên mới' });
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
-    if (discordId && team.captainDiscordId !== discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới đổi tên được' });
+    if (!isAdmin && discordId && team.captainDiscordId !== discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới đổi tên được' });
     if (containsProfanity(newName)) return res.status(400).json({ error: 'Tên đội chứa từ ngữ không phù hợp' });
     const nameExists = await prisma.team.findUnique({ where: { name: newName } });
     if (nameExists && nameExists.id !== team.id) return res.status(400).json({ error: 'Tên đội đã tồn tại' });
@@ -290,7 +291,8 @@ router.delete('/:name/players/:discordId', orAuth, async (req, res, next) => {
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Team not found' });
     const isAdmin = !!req.user;
-    if (!isAdmin && team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới có quyền' });
+    const reqDiscordId = req.discordUser ? req.discordUser.discordId : null;
+    if (!isAdmin && team.captainDiscordId !== reqDiscordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới có quyền' });
     if (!isAdmin && discordId === team.captainDiscordId) return res.status(400).json({ error: 'Không thể kick chính mình — hãy dùng "Rời đội"' });
     await prisma.player.update({ where: { discordId }, data: { teamId: null } }).catch(() => {});
     const roster = JSON.parse(team.rosterJson || '[]');
@@ -345,14 +347,15 @@ router.post('/:name/requests/cancel', discordAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Disband team (captain only)
-router.delete('/:name/disband', discordAuth, async (req, res, next) => {
+// Disband team (captain or admin)
+router.delete('/:name/disband', orAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
-    const discordId = req.discordUser.discordId;
+    const isAdmin = !!req.user;
+    const discordId = req.discordUser ? req.discordUser.discordId : null;
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
-    if (team.captainDiscordId !== discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới giải tán được' });
+    if (!isAdmin && team.captainDiscordId !== discordId) return res.status(403).json({ error: 'Chỉ đội trưởng hoặc admin mới giải tán được' });
     await prisma.player.updateMany({ where: { teamId: name }, data: { teamId: null } });
     await prisma.joinRequest.deleteMany({ where: { teamId: team.id } });
     await prisma.team.delete({ where: { id: team.id } });
@@ -382,25 +385,29 @@ router.post('/:name/join', discordAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Get join requests for a team (captain only)
-router.get('/:name/requests', discordAuth, async (req, res, next) => {
+// Get join requests for a team (captain or admin)
+router.get('/:name/requests', orAuth, async (req, res, next) => {
   try {
     const { name } = req.params;
+    const isAdmin = !!req.user;
+    const reqDiscordId = req.discordUser ? req.discordUser.discordId : null;
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
-    if (team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng xem được' });
+    if (!isAdmin && team.captainDiscordId !== reqDiscordId) return res.status(403).json({ error: 'Chỉ đội trưởng hoặc admin xem được' });
     const requests = await prisma.joinRequest.findMany({ where: { teamId: team.id }, orderBy: { createdAt: 'desc' } });
     res.json(requests);
   } catch (e) { next(e); }
 });
 
-// Approve join request (captain only)
-router.put('/:name/requests/:requestId/approve', discordAuth, async (req, res, next) => {
+// Approve join request (captain or admin)
+router.put('/:name/requests/:requestId/approve', orAuth, async (req, res, next) => {
   try {
     const { name, requestId } = req.params;
+    const isAdmin = !!req.user;
+    const reqDiscordId = req.discordUser ? req.discordUser.discordId : null;
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
-    if (team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới duyệt được' });
+    if (!isAdmin && team.captainDiscordId !== reqDiscordId) return res.status(403).json({ error: 'Chỉ đội trưởng hoặc admin mới duyệt được' });
     const joinReq = await prisma.joinRequest.findUnique({ where: { id: requestId } });
     if (!joinReq || joinReq.teamId !== team.id) return res.status(404).json({ error: 'Đơn không tồn tại' });
     if (joinReq.status !== 'pending') return res.status(400).json({ error: 'Đơn đã được xử lý' });
@@ -416,13 +423,15 @@ router.put('/:name/requests/:requestId/approve', discordAuth, async (req, res, n
   } catch (e) { next(e); }
 });
 
-// Reject join request (captain only)
-router.put('/:name/requests/:requestId/reject', discordAuth, async (req, res, next) => {
+// Reject join request (captain or admin)
+router.put('/:name/requests/:requestId/reject', orAuth, async (req, res, next) => {
   try {
     const { name, requestId } = req.params;
+    const isAdmin = !!req.user;
+    const reqDiscordId = req.discordUser ? req.discordUser.discordId : null;
     const team = await prisma.team.findFirst({ where: { name } });
     if (!team) return res.status(404).json({ error: 'Không tìm thấy đội' });
-    if (team.captainDiscordId !== req.discordUser.discordId) return res.status(403).json({ error: 'Chỉ đội trưởng mới từ chối được' });
+    if (!isAdmin && team.captainDiscordId !== reqDiscordId) return res.status(403).json({ error: 'Chỉ đội trưởng hoặc admin mới từ chối được' });
     const joinReq = await prisma.joinRequest.findUnique({ where: { id: requestId } });
     if (!joinReq || joinReq.teamId !== team.id) return res.status(404).json({ error: 'Đơn không tồn tại' });
     await prisma.joinRequest.update({ where: { id: requestId }, data: { status: 'rejected' } });
