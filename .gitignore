@@ -8,3 +8,9 @@ node_modules/
 data/
 public/uploads/
 prisma/dev.db*
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
